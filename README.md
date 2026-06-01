@@ -39,11 +39,22 @@ To build and run the application inside an isolated Docker container, follow the
    ```bash
     docker build -t meduzzen-be .
 2. Launch the Container Run the container and map the internal port 8000 to your local machine:
-```bash
+   ```bash
    docker run meduzzen-be
-```
+   ```
    
  3. Access the Application Once the container is launched, the application will be available at:
    * API Base URL: http://127.0.0.1:8000/
    * Interactive Swagger Docs: http://127.0.0.1:8000/docs
 
+## Databases (PostgreSQL & Redis)
+This project uses asynchronous connection to PostgreSQL (via SQLAlchemy + asyncpg) and Redis (via redis-py with asyncio).
+
+### Database's local launch
+Ensure that you have full ".env" file in the root of application and then complete:
+```bash
+   docker compose up -d
+```
+
+### Check efficiency
+After app's launching go to Swagger documentation page (_/docs_) and complete request for an endpoint _/healthcheck_ for validation of connections. 
