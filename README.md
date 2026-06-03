@@ -58,3 +58,14 @@ Ensure that you have full ".env" file in the root of application and then comple
 
 ### Check efficiency
 After app's launching go to Swagger documentation page (_/docs_) and complete request for an endpoint _/healthcheck_ for validation of connections. 
+
+## Database migrations (Alembic)
+App uses asynchronous driver "_asyncpg_". All commands are completed locally in launched Docker-container database.
+1. Creating new migration (automatically tracks all changes in models):
+```bash
+   alembic revision --autogenerate -m "(description of changes)"
+```
+2. Applying migrations into dastabase:
+```bash
+   alembic upgrade head
+```
