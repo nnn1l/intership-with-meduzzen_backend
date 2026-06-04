@@ -1,4 +1,5 @@
 from fastapi import status, HTTPException
+from pydantic import EmailStr
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Tuple, List, Optional
@@ -49,11 +50,12 @@ class UserService:
     # GET USER BY ID
     async def get_user_by_id(self, user_id: int) -> Optional[User]:
         query = select(User).where(User.id == user_id)
-        found_user = await self.db.execute(query)
+        result = await self.db.execute(query)
+        found_user = result.scalar_one_or_none()
         if not found_user:
             logger.info(f"User with ID {user_id} not found")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-        return found_user.scalar_one_or_none()
+        return found_user
 
     # UPDATE USER
     async def user_update(self, user_id: int, update_data: UserUpdate) -> User:
