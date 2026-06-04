@@ -12,24 +12,18 @@ async def lifespan(app:FastAPI):
     await engine.dispose()
     await redis_pool.disconnect()
 
-def get_application():
-    application = FastAPI(
-        debug=True,
-        lifespan=lifespan
-    )
-    application.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
-    application.include_router(api_router, prefix='')
-
-    return application
-
-app = get_application()
+app = FastAPI(
+    debug=True,
+    lifespan=lifespan
+)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+app.include_router(api_router, prefix='')
 
 
 

@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, status
 from fastapi.params import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 import redis.asyncio as async_redis
@@ -15,7 +15,7 @@ async def healthcheck(db: AsyncSession = Depends(init_db),
     redis_pings = await redis_cl.incr("healthcheck_pings")
 
     return {
-        "status_code": 200,
+        "status_code": status.HTTP_200_OK,
         "detail": "ok",
         "result": "working",
         "db_postgres": db_status,
