@@ -1,11 +1,11 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, status
 
 router = APIRouter()
 
 @router.get('/')
-def read_root():
+def healthcheck():
     return {
-        "status_code": 200,
+        "status_code": status.HTTP_200_OK,
         "detail": "ok",
         "result": "working"
         }
