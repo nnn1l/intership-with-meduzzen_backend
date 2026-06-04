@@ -1,9 +1,9 @@
 from http.client import responses
 from fastapi import status
 from fastapi.testclient import TestClient
-from ..main import get_application
+from ..main import app
+from fastapi import status
 
-app = get_application()
 client = TestClient(app)
 
 def test_read():
