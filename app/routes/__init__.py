@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from .health import router as health_router
+from .healthcheck import router as health_router
 from .signup_log import router as signuplog_router
 from .user import router as user_router
 api_router = APIRouter()
