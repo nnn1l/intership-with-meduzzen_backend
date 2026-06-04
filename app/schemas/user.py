@@ -31,6 +31,9 @@ class UserDetailResponse(BaseModel):
     description: str
     created_at: datetime
 
+    class Config:
+        from_attributes = True
+
 class UsersListResponse(BaseModel):
     users: List[UserSchema]
     total: int
