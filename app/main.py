@@ -1,6 +1,8 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 import uvicorn
+from starlette.middleware.cors import CORSMiddleware
+
 from app.routes import api_router
 from app.database import engine
 from app.redis_client import redis_pool
