@@ -13,6 +13,7 @@ async def healthcheck(db: AsyncSession = Depends(init_db),
     db_result = await db.execute(text("SELECT 1"))
     db_status = "conneted" if db_result.scalar() == 1 else "error"
     redis_pings = await redis_cl.incr("healthcheck_pings")
+
     return {
         "status_code": status.HTTP_200_OK,
         "detail": "ok",
