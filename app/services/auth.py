@@ -1,6 +1,7 @@
 from datetime import datetime, timezone, timedelta
 
 import bcrypt
+from fastapi.params import Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import jwt
@@ -9,9 +10,6 @@ from fastapi import HTTPException, status
 from ..logger import logger
 from ..schemas.config import settings
 from ..models.user import User
-from .user import UserService
-
-logger = logger.getLogger("app.auth")
 
 class AuthService:
     def __init__(self,db_session: AsyncSession):
@@ -57,7 +55,9 @@ class AuthService:
                     detail="Invalid token"
                 )
 
-            return await UserService.get_user_by_email(email)
+            from .user import UserService
+            user_service = UserService(self.db)
+            return await user_service.get_user_by_email(email)
 
         except jwt.PyJWTError:
             raise HTTPException(

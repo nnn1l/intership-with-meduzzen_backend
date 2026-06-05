@@ -17,6 +17,7 @@ class UserUpdate(BaseModel):
     username: Optional[str] = None
     description: Optional[str] = None
     is_active: Optional[str] = None
+    password: Optional[str] = None
 
 class UserSchema(UserBase):
     id: int
