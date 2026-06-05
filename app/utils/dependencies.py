@@ -5,12 +5,13 @@ from app.core.auth import verify_auth0_token
 from app.database import init_db
 from app.services.user import UserService
 from ..models.user import User
+from ..services.auth import AuthService
 
 
 async def get_user_service(db: AsyncSession = Depends(init_db)) -> UserService:
     return UserService(db)
 
-async def get_current_user(payload: dict = Depends(verify_auth0_token), service: UserService = Depends(get_user_service)) -> User:
+async def get_current_user(payload: dict = Depends(verify_auth0_token), service: AuthService = Depends(get_user_service)) -> User:
     email = payload.get('email')
 
     if not email:

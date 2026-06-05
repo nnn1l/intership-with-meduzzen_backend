@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     AUTH0_SECRET: str
     AUTH0_AUDIENCE: str
 
+    ACCESS_TOKEN_EXPIRE_MINUTES: int
+
     @property
     def DATABASE_URL(self):
         return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"

@@ -10,11 +10,10 @@ from app.schemas.user import UserSignUp
 
 router = APIRouter()
 
-@router.get('/signup_log')
+@router.post("/signup_log")
 async def signup_log(user_data: UserSignUp):
-    try:
-        logger.info(f'User {user_data.username} succesfully registered')
+    logger.info(
+        f"User {user_data.username} successfully registered"
+    )
 
-    except Exception as e:
-        logger.error(f"Registration failed: {str(e)}")
-        raise
+    return {"message": "Log created"}
