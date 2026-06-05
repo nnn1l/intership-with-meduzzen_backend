@@ -1,11 +1,16 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from ..services.user import UserService
-from ..schemas.user import UserUpdate, UserSignUp, UserDetailResponse, UsersListResponse
-from ..utils.dependencies import get_user_service
+from ..schemas.user import UserUpdate, UserSignUp, UserDetailResponse, UsersListResponse, UserSignIn
+from ..utils.dependencies import get_user_service, get_current_user
+from fastapi.security import OAuth2PasswordBearer
+from fastapi import APIRouter, Depends, HTTPException, status
+from ..utils.security import verify_password, create_access_token
+from ..models.user import User
+
 logger = logging.getLogger("app.crud")
 router = APIRouter(prefix="/users", tags=["Users"])
-
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/users/signin")
 
 # CREATING USER ROUTE
 @router.post("/", response_model=UserDetailResponse, status_code=status.HTTP_201_CREATED)
@@ -48,3 +53,23 @@ async def delete_user(user_id: int, service: UserService = Depends(get_user_serv
     logger.info(f"Modifying database: deleting user ID {user_id}")
     await service.delete_user(user_id)
     logger.info(f"User ID {user_id} deleted successfully")
+
+# SIGN IN
+@router.post("/signin")
+async def sign_in(user_data: UserSignIn, service: UserService = Depends(get_user_service)):
+    user = await service.get_user_by_email(user_data.email)
+
+    if not verify_password(user_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect password"
+        )
+
+    access_token = create_access_token(data={"sub": user.username, "email": user.email})
+    return {"access_token": access_token, "token_type": "bearer"}
+
+# GETTING USER BY TOKEN
+@router.get("/me", response_model=UserDetailResponse)
+async def get_me(current_user: User = Depends(get_current_user)):
+
+    return UserDetailResponse(user=current_user)
