@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from ..services.auth import AuthService
 from ..models.user import User
 
-router = APIRouter(prefix="/users", tags=["Users"])
+router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/users/signin")
 
 # CREATING USER ROUTE
