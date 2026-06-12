@@ -10,7 +10,8 @@ from ..main import app
 from ..database import engine
 from ..models.user import User
 from ..schemas.config import settings
-from ..services.user import UserService
+from ..services.auth import AuthService
+from ..utils.dependencies import validate_profile_owner
 
 
 @pytest.fixture
@@ -30,6 +31,25 @@ async def async_client(mock_db_session):
         yield ac
 
     app.dependency_overrides.clear()
+
+@pytest.fixture
+def mock_auth_user_1():
+    async def override_validate_profile_owner(user_id: int):
+        if user_id != 1:
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=403,
+                detail="You're able to manage only your own profile"
+            )
+        return MOCK_USER_1
+
+    app.dependency_overrides[validate_profile_owner] = override_validate_profile_owner
+    yield
+    app.dependency_overrides.clear()
+
+MOCK_USER_1 = User(id=1, username="alex", email="alex@example.com")
+
+pytestmark = pytest.mark.asyncio
 
 
 @pytest.mark.asyncio
@@ -81,10 +101,40 @@ async def test_get_current_user_by_token(mock_db_session):
         algorithm=settings.ALGORITHM
     )
 
-    service = UserService(mock_db_session)
+    service = AuthService(mock_db_session)
 
     user = await service.get_current_user_by_token(token)
 
     assert user is not None
     assert user.email == test_email
     assert user.username == "viktoriia_dev"
+
+
+async def test_update_own_profile_success(mock_auth_user_1):  # noqa
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        payload = {"name": "New name"}
+        response = await ac.patch("/users/1", json=payload)
+
+        assert response.status_code == status.HTTP_200_OK
+
+
+async def test_update_someone_profile_forbidden(mock_auth_user_1):  # noqa
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        payload = {"name": "Hacker attack"}
+        response = await ac.patch("/users/2", json=payload)
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert response.json()["detail"] == "You're able to manage only your own profile"
+
+
+async def test_delete_someone_profile_forbidden(mock_auth_user_1):  # noqa
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        response = await ac.delete("/users/2")
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN

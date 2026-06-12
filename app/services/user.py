@@ -7,9 +7,7 @@ from typing import Tuple, List, Optional
 from ..logger import logger
 from ..models.user import User
 from ..schemas.user import UserSignUp, UserUpdate
-from .auth import AuthService
 
-logger = logger.getLogger("app.crud")
 
 class UserService:
     def __init__(self,db_session: AsyncSession):
@@ -17,6 +15,7 @@ class UserService:
 
     # NEW USER REGISTRATION WITH HASHING
     async def create_user(self, user_data: UserSignUp):
+        from .auth import AuthService
         hashed_password = AuthService.hash_password(user_data.password)
 
         try:
@@ -72,8 +71,10 @@ class UserService:
                 detail="User not found"
             )
 
+        allowed_fields = {'name', 'password', 'description'}
         data_to_update = update_data.model_dump(exclude_unset=True)
-        for key, value in data_to_update.items():
+        filtered_data = {k: v for k, v in data_to_update.items() if k in allowed_fields}
+        for key, value in filtered_data.items():
             setattr(user, key, value)
 
         await self.db.commit()
