@@ -5,7 +5,8 @@ from datetime import datetime
 from ..models import Base
 
 if TYPE_CHECKING:
-    from .company import Company
+    from .company import Company, company_members
+    from .invitation import MembershipManagement
 
 class User(Base):
     __tablename__ = "users"
@@ -17,4 +18,7 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(default=datetime.now)
-    companies: Mapped[List["Company"]] = relationship(back_populates='owner')
+
+    owned_companies: Mapped[List["Company"]] = relationship(back_populates='owner')
+    companies: Mapped[List['Company']] = relationship(secondary='company_members', back_populates='members')
+    memberships: Mapped[List['MembershipManagement']] = relationship(back_populates='user', cascade="all, delete-orphan")

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, EmailStr
 from typing import Optional
 from ..utils.enums import VisibilityStatus
 
@@ -19,3 +19,11 @@ class CompanyResponse(BaseModel):
     visibility: VisibilityStatus
 
     model_config = ConfigDict(from_attributes = True)
+
+class CompanyMemberResponse(BaseModel):
+    id: int
+    username: str
+    description: str | None
+    email: EmailStr
+
+    model_config = ConfigDict(from_attributes=True)

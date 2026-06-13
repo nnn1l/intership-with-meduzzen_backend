@@ -3,7 +3,7 @@ from typing import List
 from fastapi import APIRouter, status
 from fastapi.params import Depends, Query
 
-from ..schemas.company import CompanyResponse, CompanyCreate, CompanyUpdate
+from ..schemas.company import CompanyResponse, CompanyCreate, CompanyUpdate, CompanyMemberResponse
 from ..services.company import CompanyService
 from ..utils.dependencies import get_company_service, get_current_user
 from ..models.user import User
@@ -47,5 +47,25 @@ async def change_company_visibility(company_id: int,
                                     service: CompanyService = Depends(get_company_service),
                                     current_user: User = Depends(get_current_user)):
     return await service.change_company_visibility(company_id, current_user.id)
+
+@router.delete('/{company_id}/fire/{user_id}', status_code=status.HTTP_204_NO_CONTENT)
+async def fire_user_from_company(company_id: int,
+                                 user_id: int,
+                                 current_user: User = Depends(get_current_user),
+                                 service: CompanyService = Depends(get_company_service)):
+    return await service.fire_user_from_company(company_id, user_id, current_user)
+
+@router.delete('/{company_id}/leave', status_code=status.HTTP_204_NO_CONTENT)
+async def leave_company(company_id: int,
+                        service: CompanyService = Depends(get_company_service),
+                        current_user: User = Depends(get_current_user)):
+    return await service.leave_company(company_id,current_user)
+
+@router.get('/{company_id}/members', response_model=List[CompanyMemberResponse])
+async def get_company_members(company_id: int,
+                              limit: int = 10,
+                              offset: int = 0,
+                              service: CompanyService = Depends(get_company_service)):
+    return await service.get_company_members(company_id, limit, offset)
 
 
