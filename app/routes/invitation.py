@@ -22,7 +22,7 @@ async def create_join_request(company_id: int,
                             request_data: JoinRequestCreate,
                             service: InvitationService = Depends(get_invitation_service),
                             current_user: User = Depends(get_current_user)):
-    return await service.create_join_request(request_data, company_id, current_user)
+    return await service.request_create(request_data, company_id, current_user)
 
 @router.patch('/invitations/{invitation_id}/accept', response_model=MembershipResponse)
 async def accept_invitation(invitation_id: int,

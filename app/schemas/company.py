@@ -27,6 +27,3 @@ class CompanyMemberResponse(BaseModel):
     email: EmailStr
 
     model_config = ConfigDict(from_attributes=True)
-
-class CompanyVisibilityResponse(BaseModel):
-    visibility: VisibilityStatus
