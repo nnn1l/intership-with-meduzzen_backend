@@ -1,6 +1,6 @@
 from typing import List, TYPE_CHECKING
 
-from sqlalchemy import select, and_, delete
+from sqlalchemy import select, and_, delete, update
 from ..models.user import User
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
@@ -8,6 +8,9 @@ from ..models.company import Company, company_members
 from ..schemas.company import CompanyCreate, CompanyUpdate
 from ..logger import logger
 from ..utils.enums import VisibilityStatus
+
+if TYPE_CHECKING:
+    from .user import UserService
 
 class CompanyService:
     def __init__(self, db_session: AsyncSession):
@@ -124,7 +127,7 @@ class CompanyService:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                                 detail="You don't have permissions to fire user from this company")
 
-        user_search = select(company_members).where(
+        user_search = select(company_members.c.user_id).where(
             and_(
                 company_members.c.company_id == company_id,
                 company_members.c.user_id == fired_user_id))
@@ -153,7 +156,7 @@ class CompanyService:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                                 detail="You can't leave from your own company")
 
-        user_search = select(company_members).where(
+        user_search = select(company_members.c.user_id).where(
             and_(
                 company_members.c.company_id == company_id,
                 company_members.c.user_id == current_user.id))
@@ -184,3 +187,100 @@ class CompanyService:
 
         result = await self.db.execute(members)
         return result.scalars().all()
+
+
+    # APPOINT ADMIN
+    async def appoint_admin(self, company_id: int, user_id: int, current_user: User) -> User:
+        if user_id == current_user.id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="You can't appoint yourself as an admin")
+
+        company = await self.get_company_by_id(company_id) # ensures that company exists & gets company
+
+        if company.owner_id != current_user.id:
+             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                 detail="You don't have permissions to appoint admins in this company")
+
+        user_service = UserService(self.db)
+        user = await user_service.get_user_by_id(user_id) # ensures that user exists & gets user
+
+        user_search = select(company_members).where(
+            and_(
+                company_members.c.company_id == company_id,
+                company_members.c.user_id == user_id))
+        user_presence = await self.db.execute(user_search)
+        member = user_presence.mappings().first()
+
+        if not member:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="You can't appoint user as an admin if user isn't a member of company")
+
+        if member['is_admin']:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="You can't appoint user as an admin twice")
+
+        update_user = update(company_members).where(
+            and_(
+                company_members.c.company_id == company_id,
+                company_members.c.user_id == user_id)).values(is_admin=True)
+        await self.db.execute(update_user)
+        await self.db.commit()
+        return user
+
+
+    # FIRE FROM ADMIN ROLE
+    async def decline_admin_role(self, company_id: int, user_id: int, current_user: User) -> User:
+        if user_id == current_user.id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="You can't fire yourself from admin role")
+
+        company = await self.get_company_by_id(company_id)  # ensures that company exists & gets company
+
+        if company.owner_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                detail="You don't have permissions to fire from admin role in this company")
+
+        user_service = UserService(self.db)
+        user = await user_service.get_user_by_id(user_id)  # ensures that user exists & gets user
+
+        user_search = select(company_members).where(
+            and_(
+                company_members.c.company_id == company_id,
+                company_members.c.user_id == user_id))
+        user_presence = await self.db.execute(user_search)
+        member = user_presence.mappings().first()
+
+        if not member:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="You can't fire user from admin role if user isn't a member of company")
+
+        if not member['is_admin']:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="You can't fire user from admin role who isn't an admin already")
+
+        update_user = update(company_members).where(
+            and_(
+                company_members.c.company_id == company_id,
+                company_members.c.user_id == user_id)).values(is_admin=False)
+        await self.db.execute(update_user)
+        await self.db.commit()
+        return user
+
+
+    # GET COMPANY'S ADMINISTRATION
+    async def get_company_administration(self, company_id: int, current_user: User):
+        company = await self.get_company_by_id(company_id)
+
+        if company.owner_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                detail="Only owners of company are able to view administration list")
+
+        admins = select(User).where(
+            and_(
+                company_members.c.company_id == company_id,
+                company_members.c.is_admin == True
+            )
+        )
+
+        administration = await self.db.execute(admins)
+        return administration.scalars().all()
