@@ -82,10 +82,5 @@ async def decline_admin_role(company_id: int,
                         current_user: User = Depends(get_current_user)):
     return await service.decline_admin_role(company_id, user_id, current_user)
 
-@router.get('/{company_id}/get_administration', response_model=List[CompanyMemberResponse])
-async def get_administration(company_id: int,
-                             service: CompanyService = Depends(get_company_service),
-                             current_user: User = Depends(get_current_user)):
-    return await service.get_company_administration(company_id, current_user)
 
 

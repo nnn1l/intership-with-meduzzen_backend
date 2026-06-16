@@ -27,14 +27,17 @@ class CompanyService:
                 visibility = company_data.visibility,
                 owner_id = owner_id
             )
-        except Exception as e:
-            logger.error('Error appeared during creating a company')
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error during user creation: {str(e)}")
 
-        self.db.add(company)
-        await self.db.commit()
-        await self.db.refresh(company)
-        return company
+            self.db.add(company)
+            await self.db.commit()
+            await self.db.refresh(company)
+            return company
+
+        except Exception as e:
+            await self.db.rollback()
+            logger.error('Error appeared during creating a company')
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error during company creation: {str(e)}")
+
 
 
     # GET COMPANY BY ID
@@ -268,12 +271,8 @@ class CompanyService:
 
 
     # GET COMPANY'S ADMINISTRATION
-    async def get_company_administration(self, company_id: int, current_user: User):
-        company = await self.get_company_by_id(company_id)
-
-        if company.owner_id != current_user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                                detail="Only owners of company are able to view administration list")
+    async def get_company_administration(self, company_id: int):
+        await self.get_company_by_id(company_id) # ensuring that company exists
 
         admins = select(User).where(
             and_(
