@@ -1,9 +1,9 @@
 from typing import Optional, List
 
-from .base import Base
 from sqlalchemy import String, ForeignKey, Integer, Boolean, Table, Column
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from .base import Base
 
 class Quiz(Base):
     __tablename__ = "quizzes"
