@@ -1,11 +1,9 @@
-from datetime import datetime
 from typing import Optional, List
-from .base import Base
-from sqlalchemy import func
-from sqlalchemy import String, ForeignKey, Integer, Boolean, Float, DateTime
+
+from sqlalchemy import String, ForeignKey, Integer, Boolean, Table, Column
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from .base import Base
+from ..models import Base
 
 class Quiz(Base):
     __tablename__ = "quizzes"
@@ -18,7 +16,6 @@ class Quiz(Base):
     max_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=True) # if max attempts = 0 -> infinity attempts
 
     questions: Mapped[List['Question']] = relationship(back_populates='quiz', cascade="all, delete-orphan")
-    quiz_attempts: Mapped[List['QuizAttempt']] = relationship(back_populates='quiz', cascade="all, delete-orphan")
 
 
 class Question(Base):
@@ -38,23 +35,12 @@ class AnswerOption(Base):
     answer: Mapped[str] = mapped_column(String(100), nullable=False)
     is_correct: Mapped[bool] = mapped_column(Boolean)
 
-    question_id: Mapped[int] = mapped_column(ForeignKey("questions.id", ondelete="CASCADE"))
+    question_id: Mapped[int] = mapped_column(ForeignKey("questions_id", ondelete="CASCADE"))
     question: Mapped['Question'] = relationship(back_populates='answer_option')
 
 
-class QuizAttempt(Base):
-    __tablename__ = "quiz_attempts"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    quiz_id: Mapped[int] = mapped_column(ForeignKey('quizzes.id', ondelete="CASCADE"))
-    user_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete="CASCADE"))
-    company_id: Mapped[int] = mapped_column(ForeignKey('companies.id', ondelete="CASCADE"))
-
-    score: Mapped[float] = mapped_column(Float, default=0.0) # score in %
-    total_questions: Mapped[int] = mapped_column(Integer)
-    correct_answers: Mapped[int] = mapped_column(Integer, default=0)
-
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
-
-    user = relationship("User", back_populates="quiz_attempts")
-    quiz = relationship("Quiz", back_populates="quiz_attempts")
+quiz_attempts = Table("quiz_attempts",
+                      Base.metadata,
+                      Column("user_id", ForeignKey("users.id", ondelete='CASCADE'), primary_key=True),
+                      Column("quiz_id", ForeignKey("quizzes.id", ondelete="CASCADE"), primary_key=True),
+                      Column("attempts", Integer, default=0))
