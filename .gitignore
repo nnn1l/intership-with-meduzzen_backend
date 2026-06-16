@@ -2,5 +2,7 @@
 .idea/
 poetry.lock
 .env
+__pycache__/
+.pytest_cache/
+*.py[cod]
 app.log
-__pychache__/
