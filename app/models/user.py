@@ -7,6 +7,7 @@ from ..models import Base
 if TYPE_CHECKING:
     from .company import Company, company_members
     from .invitation import MembershipManagement
+    from .quiz import QuizAttempt
 
 class User(Base):
     __tablename__ = "users"
@@ -22,3 +23,4 @@ class User(Base):
     owned_companies: Mapped[List["Company"]] = relationship(back_populates='owner')
     companies: Mapped[List['Company']] = relationship(secondary='company_members', back_populates='members')
     memberships: Mapped[List['MembershipManagement']] = relationship(back_populates='user', cascade="all, delete-orphan")
+    quiz_attempts: Mapped[List['QuizAttempt']] = relationship(back_populates='user', cascade="all, delete-orphan")
