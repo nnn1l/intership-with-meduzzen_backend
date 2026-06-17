@@ -1,6 +1,8 @@
+import json
 from typing import TYPE_CHECKING, List
 
 from fastapi import HTTPException, status
+from redis.asyncio import Redis
 from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -8,7 +10,7 @@ from sqlalchemy.orm import selectinload
 from ..logger import logger
 from ..models.user import User
 from ..models.quiz import Quiz, Question, AnswerOption, QuizAttempt
-from ..schemas.quiz import QuizCreate, QuizUpdate, AnswerUpdate, QuizSubmit
+from ..schemas.quiz import QuizCreate, QuizUpdate, AnswerUpdate, QuizSubmit, UserAnswerSubmit
 
 if TYPE_CHECKING:
     from .company import CompanyService
@@ -197,7 +199,7 @@ class QuizService:
 
 
     # SUBMIT QUIZ & RESULT (new quiz attempt creation)
-    async def create_quiz_attempt(self, quiz_id: int, answers: QuizSubmit, current_user: User) -> QuizAttempt:
+    async def create_quiz_attempt(self, quiz_id: int, answers: QuizSubmit, current_user: User, redis: Redis) -> QuizAttempt:
         quiz = await self.get_quiz_by_id(quiz_id) # ensures that quiz exists & gets quiz
 
         company_service = CompanyService(self.db)
@@ -218,6 +220,12 @@ class QuizService:
             if quiz.max_attempts <= attempts:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                     detail=f"You've reached the maximum limit of {quiz.quiz_attempts} attempts for this quiz")
+
+
+        user_answers_dict = await self.get_quiz_progress(redis, current_user.id, quiz_id)
+        if not user_answers_dict:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="No answers found in progress. Please answer questions first")
 
         total_questions = len(quiz.questions)
         correct_answer_count = 0
@@ -245,6 +253,8 @@ class QuizService:
             self.db.add(new_attempt)
             await self.db.commit()
             await self.db.refresh(new_attempt)
+
+            await self.clear_quiz_progress(redis, current_user.id, quiz_id)
 
             return new_attempt
 
@@ -285,5 +295,30 @@ class QuizService:
             return 0.0
 
         return (result.total_correct / result.total_questions) * 100
+
+
+    # TEMPORARILY SAVES ANSWER FOR 1 QUESTION IN REDIS FOR 48 HOURS
+    async def save_question_progress(self, redis: Redis, quiz_id: int, user_id: int, answer_data: UserAnswerSubmit):
+        redis_key = f"quiz_progress:{user_id}:{quiz_id}"
+
+        await redis.hset(redis_key, str(answer_data.question_id), json.dumps(answer_data.chosen_answer_id))
+        await redis.expire(redis_key, 172800) #48 hours
+
+
+    # GETS ALL STORED ANSWERS IN REDIS FOR PAST 48 HOURS
+    async def get_quiz_progress(self, redis: Redis, user_id: int, quiz_id: int) -> dict:
+        redis_key = f"quiz_progress:{user_id}:{quiz_id}"
+        stored_data = await redis.hgetall(redis_key)
+
+        if not stored_data:
+            return {}
+
+        return {int(q_id): json.loads(val) for q_id, val in stored_data.items()}
+
+
+    # DELETES CACHE IN REDIS AFTER SUCCESSFUL QUIZ SAVING IN POSTGRESQL
+    async def clear_quiz_progress(self, redis: Redis, user_id: int, quiz_id: int):
+        redis_key = f"quiz_progress:{user_id}:{quiz_id}"
+        await redis.delete(redis_key)
 
 
