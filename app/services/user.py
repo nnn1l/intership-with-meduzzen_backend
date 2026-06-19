@@ -71,8 +71,10 @@ class UserService:
                 detail="User not found"
             )
 
+        allowed_fields = {'name', 'password', 'description'}
         data_to_update = update_data.model_dump(exclude_unset=True)
-        for key, value in data_to_update.items():
+        filtered_data = {k: v for k, v in data_to_update.items() if k in allowed_fields}
+        for key, value in filtered_data.items():
             setattr(user, key, value)
 
         await self.db.commit()
