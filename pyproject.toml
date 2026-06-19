@@ -19,7 +19,7 @@ dependencies = [
     "greenlet (>=3.5.1,<4.0.0)",
     "alembic (>=1.18.4,<2.0.0)",
     "bcrypt (>=5.0.0,<6.0.0)",
-    "pydantic[email] (>=2.13.4,<3.0.0)"
+    "pydantic[email] (>=2.13.4,<3.0.0)",
     "greenlet (>=3.5.1,<4.0.0)"
 ]
 

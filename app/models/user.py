@@ -1,12 +1,11 @@
 from sqlalchemy import String
-from typing import Optional
-from sqlalchemy.orm import Mapped, mapped_column, DeclarativeBase
+from typing import Optional, List, TYPE_CHECKING
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
+from ..models import Base
 
-
-class Base(DeclarativeBase):
-    pass
-
+if TYPE_CHECKING:
+    from .company import Company
 
 class User(Base):
     __tablename__ = "users"
@@ -18,4 +17,4 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(default=datetime.now)
-
+    companies: Mapped[List["Company"]] = relationship(back_populates='owner')

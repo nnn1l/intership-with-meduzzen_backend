@@ -7,7 +7,7 @@ from typing import Tuple, List, Optional
 from ..logger import logger
 from ..models.user import User
 from ..schemas.user import UserSignUp, UserUpdate
-from ..utils.security import hash_password
+
 
 class UserService:
     def __init__(self,db_session: AsyncSession):
@@ -15,9 +15,11 @@ class UserService:
 
     # NEW USER REGISTRATION WITH HASHING
     async def create_user(self, user_data: UserSignUp):
-        hashed_password = hash_password(user_data.password)
+        from .auth import AuthService
+        hashed_password = AuthService.hash_password(user_data.password)
 
         try:
+            logger.info(f"Attempting to create user with username: {user_data.username}")
             new_user = User(
                 username = user_data.username,
                 email = user_data.email,
@@ -59,6 +61,7 @@ class UserService:
 
     # UPDATE USER
     async def user_update(self, user_id: int, update_data: UserUpdate) -> User:
+        logger.info(f"Modifying database: updating user ID {user_id}")
         user = await self.get_user_by_id(user_id)
 
         if not user:
@@ -74,11 +77,13 @@ class UserService:
 
         await self.db.commit()
         await self.db.refresh(user)
+        logger.info(f"User ID {user_id} modified successfully")
 
         return user
 
     # USER DELETION
     async def delete_user(self, user_id: int) -> bool:
+        logger.info(f"Modifying database: deleting user ID {user_id}")
         user = await self.get_user_by_id(user_id)
         if not user:
             logger.info(f"Deletion isn't completed: user wasn't found")
@@ -89,5 +94,19 @@ class UserService:
 
         await self.db.delete(user)
         await self.db.commit()
+        logger.info(f"User ID {user_id} deleted successfully")
 
         return True
+
+    # GET USER BY EMAIL
+    async def get_user_by_email(self, email: EmailStr) -> User:
+        query = select(User).where(User.email == email)
+        result = await self.db.execute(query)
+        found_user = result.scalar_one_or_none()
+
+        if not found_user:
+            logger.info(f"User with e-mail {email} not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found or incorrect e-mail")
+
+        return found_user
+
