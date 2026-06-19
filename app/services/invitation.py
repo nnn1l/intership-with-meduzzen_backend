@@ -58,7 +58,7 @@ class InvitationService:
 
 
     # CREATE JOIN REQUEST
-    async def request_create(self, request_data: JoinRequestCreate, company_id: int, current_user: User) -> MembershipManagement:
+    async def create_join_request(self, request_data: JoinRequestCreate, company_id: int, current_user: User) -> MembershipManagement:
         company_service = CompanyService(self.db)
         company = await company_service.get_company_by_id(company_id)  # ensuring if company exists & get company
 

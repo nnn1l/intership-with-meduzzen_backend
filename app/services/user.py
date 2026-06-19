@@ -52,11 +52,12 @@ class UserService:
     # GET USER BY ID
     async def get_user_by_id(self, user_id: int) -> Optional[User]:
         query = select(User).where(User.id == user_id)
-        found_user = await self.db.execute(query)
+        result = await self.db.execute(query)
+        found_user = result.scalar_one_or_none()
         if not found_user:
             logger.info(f"User with ID {user_id} not found")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-        return found_user.scalar_one_or_none()
+        return found_user
 
     # UPDATE USER
     async def user_update(self, user_id: int, update_data: UserUpdate) -> User:
@@ -70,8 +71,10 @@ class UserService:
                 detail="User not found"
             )
 
+        allowed_fields = {'name', 'password', 'description'}
         data_to_update = update_data.model_dump(exclude_unset=True)
-        for key, value in data_to_update.items():
+        filtered_data = {k: v for k, v in data_to_update.items() if k in allowed_fields}
+        for key, value in filtered_data.items():
             setattr(user, key, value)
 
         await self.db.commit()
