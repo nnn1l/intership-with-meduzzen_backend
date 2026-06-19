@@ -1,17 +1,18 @@
-from typing import List
+from typing import List, TYPE_CHECKING
 
-from sqlalchemy import select
+from sqlalchemy import select, and_, delete
+from ..models.user import User
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
-from ..models.company import Company
+from ..models.company import Company, company_members
 from ..schemas.company import CompanyCreate, CompanyUpdate
 from ..logger import logger
 from ..utils.enums import VisibilityStatus
 
-
 class CompanyService:
     def __init__(self, db_session: AsyncSession):
         self.db = db_session
+
 
     # CREATE COMPANY
     async def create_company(self, company_data: CompanyCreate, owner_id: int) -> Company:
@@ -91,6 +92,7 @@ class CompanyService:
         logger.info(f"Company ID {company_id} deleted successfully")
         return True
 
+
     # CHANGE COMPANY VISIBILITY
     async def change_company_visibility(self, company_id: int, user_id: int) -> bool:
         company = await self.get_company_by_id(company_id)
@@ -107,3 +109,78 @@ class CompanyService:
             company.visibility = VisibilityStatus.VISIBLE_TO_ALL
 
         return True
+
+
+    # FIRE USER FROM COMPANY
+    async def fire_user_from_company(self, company_id: int, fired_user_id: int, current_user: User) -> bool:
+
+        if fired_user_id == current_user.id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="You can't fire yourself")
+
+        company = await self.get_company_by_id(company_id)
+
+        if company.owner_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                detail="You don't have permissions to fire user from this company")
+
+        user_search = select(company_members).where(
+            and_(
+                company_members.c.company_id == company_id,
+                company_members.c.user_id == fired_user_id))
+        user_presence = await self.db.execute(user_search)
+
+        if not user_presence.scalar_one_or_none():
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="This user isn't in this company")
+
+        fire = delete(company_members).where(
+            and_(
+                company_members.c.company_id == company_id,
+                company_members.c.user_id == fired_user_id))
+
+        await self.db.execute(fire)
+        await self.db.commit()
+        logger.info(f"User with ID {fired_user_id} fired from company with ID {company_id}")
+        return True
+
+
+    # LEAVE COMPANY
+    async def leave_company(self, company_id: int, current_user: User) -> bool:
+        company = await self.get_company_by_id(company_id)
+
+        if company.owner_id == current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                detail="You can't leave from your own company")
+
+        user_search = select(company_members).where(
+            and_(
+                company_members.c.company_id == company_id,
+                company_members.c.user_id == current_user.id))
+        user_presence = await self.db.execute(user_search)
+
+        if not user_presence.scalar_one_or_none():
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="You're not in this company to have ability to leave")
+
+        leave = delete(company_members).where(
+            and_(
+                company_members.c.company_id == company_id,
+                company_members.c.user_id == current_user.id))
+        await self.db.execute(leave)
+        await self.db.commit()
+        logger.info(f"User with ID {current_user.id} left a company with ID {company_id}")
+        return True
+
+
+    # GET COMPANY'S MEMBERS
+    async def get_company_members(self, company_id: int, limit: int, offset: int):
+        await self.get_company_by_id(company_id)
+
+        members = (select(User).join(company_members, User.id == company_members.c.user_id)
+            .where(company_members.c.company_id == company_id)
+            .limit(limit)
+            .offset(offset))
+
+        result = await self.db.execute(members)
+        return result.scalars().all()

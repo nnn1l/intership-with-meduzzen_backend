@@ -7,6 +7,7 @@ from ..services.user import UserService
 from ..models.user import User
 from ..services.auth import AuthService
 from ..services.company import CompanyService
+from ..services.invitation import InvitationService
 
 
 async def get_user_service(db: AsyncSession = Depends(init_db)) -> UserService:
@@ -17,6 +18,9 @@ async def get_auth_service(db: AsyncSession = Depends(init_db)) -> AuthService:
 
 async def get_company_service(db: AsyncSession = Depends(init_db)) -> CompanyService:
     return CompanyService(db)
+
+async def get_invitation_service(db: AsyncSession = Depends(init_db)) -> InvitationService:
+    return InvitationService(db)
 
 async def get_current_user(payload: dict = Depends(verify_auth0_token), service: AuthService = Depends(get_auth_service)) -> User:
     email = payload.get('email')
