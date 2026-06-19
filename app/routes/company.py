@@ -22,7 +22,7 @@ async def get_company_by_id(company_id: int,
                             service: CompanyService = Depends(get_company_service),):
     return await service.get_company_by_id(company_id)
 
-@router.get('/', response_model=List[CompanyResponse])
+@router.get('/multi', response_model=List[CompanyResponse])
 async def get_companies(limit: int = Query(default=10, ge=1, le=100),
                         offset: int = Query(default=0, ge=0),
                         service: CompanyService = Depends(get_company_service)):
@@ -42,7 +42,7 @@ async def delete_company(company_id: int,
                          current_user: User = Depends(get_current_user)):
     await service.delete_company(company_id, current_user.id)
 
-@router.post('/{company.id}', response_model=bool)
+@router.post('/{company.id}/toggle-visibility', response_model=bool)
 async def change_company_visibility(company_id: int,
                                     service: CompanyService = Depends(get_company_service),
                                     current_user: User = Depends(get_current_user)):
