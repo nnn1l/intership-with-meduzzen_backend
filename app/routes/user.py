@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from ..services.auth import AuthService
 from ..models.user import User
 
-router = APIRouter(prefix="/users", tags=["Users"])
+router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/users/signin")
 
 # CREATING USER ROUTE
@@ -19,7 +19,7 @@ async def create_user(user_data: UserSignUp, service: UserService = Depends(get_
 
 
 # GETTING USERS (LIMIT = 10)
-@router.get("/", response_model=UsersListResponse)
+@router.get("/multi", response_model=UsersListResponse)
 async def get_users(
     limit: int = Query(default=10, ge=1, le=100),
     offset: int = Query(default=0, ge=0),

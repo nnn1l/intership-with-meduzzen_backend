@@ -1,11 +1,12 @@
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth import verify_auth0_token
-from app.database import init_db
-from app.services.user import UserService
+from ..core.auth import verify_auth0_token
+from ..database import init_db
+from ..services.user import UserService
 from ..models.user import User
 from ..services.auth import AuthService
+from ..services.company import CompanyService
 
 
 async def get_user_service(db: AsyncSession = Depends(init_db)) -> UserService:
@@ -13,6 +14,9 @@ async def get_user_service(db: AsyncSession = Depends(init_db)) -> UserService:
 
 async def get_auth_service(db: AsyncSession = Depends(init_db)) -> AuthService:
     return AuthService(db)
+
+async def get_company_service(db: AsyncSession = Depends(init_db)) -> CompanyService:
+    return CompanyService(db)
 
 async def get_current_user(payload: dict = Depends(verify_auth0_token), service: AuthService = Depends(get_auth_service)) -> User:
     email = payload.get('email')
