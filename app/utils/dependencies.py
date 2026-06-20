@@ -7,6 +7,7 @@ from ..database import init_db
 from ..models.company import company_members
 from ..services.quiz import QuizService
 from ..services.user import UserService
+from ..services.analytics import UserAnalytics, CompanyAnalytics
 from ..models.user import User
 from ..services.auth import AuthService
 from ..services.company import CompanyService
@@ -27,6 +28,12 @@ async def get_invitation_service(db: AsyncSession = Depends(init_db)) -> Invitat
 
 async def get_quiz_service(db: AsyncSession = Depends(init_db)):
     return QuizService(db)
+
+async def get_user_analytics_service(db: AsyncSession = Depends(init_db)) -> UserAnalytics:
+    return UserAnalytics(db)
+
+async def get_company_analytics_service(db: AsyncSession = Depends(init_db)) -> CompanyAnalytics:
+    return CompanyAnalytics(db)
 
 async def get_current_user(payload: dict = Depends(verify_auth0_token), service: AuthService = Depends(get_auth_service)) -> User:
     email = payload.get('email')
