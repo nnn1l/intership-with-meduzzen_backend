@@ -8,10 +8,10 @@ from fastapi import status, HTTPException
 from ..models.company import company_members
 from ..models.quiz import QuizAttempt
 from ..models.user import User
-from ..utils.dependencies import check_admin_role
 
 if TYPE_CHECKING:
     from .company import CompanyService
+    from ..utils.dependencies import check_admin_role
 
 
 class UserAnalytics:
