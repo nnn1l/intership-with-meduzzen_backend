@@ -7,7 +7,7 @@ class NotificationBase(BaseModel):
     message: str
 
 class NotificationCreate(NotificationBase):
-    user_id: int
+    user_id: Optional[int] = None
 
 class NotificationUpdate(NotificationBase):
     status: Optional[bool] = True
