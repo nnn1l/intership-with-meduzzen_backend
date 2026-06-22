@@ -7,16 +7,17 @@ from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from .user import UserService
 from ..logger import logger
 from ..models.company import company_members
 from ..models.user import User
 from ..models.quiz import Quiz, Question, AnswerOption, QuizAttempt
 from ..schemas.quiz import QuizCreate, QuizUpdate, AnswerUpdate, QuizSubmit, UserAnswerSubmit
+from ..schemas.notification import NotificationCreate
 
 if TYPE_CHECKING:
     from .company import CompanyService
     from ..utils.dependencies import check_admin_role
+    from .notification import NotificationService
 
 class QuizService:
     def __init__(self, db_session: AsyncSession):
@@ -29,7 +30,7 @@ class QuizService:
         company_service = CompanyService(self.db)
         company = await company_service.get_company_by_id(company_id)
 
-        admin_role = check_admin_role(company_id, current_user.id)
+        admin_role = await check_admin_role(company_id, current_user.id)
 
         if not admin_role and company.owner_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
@@ -62,6 +63,23 @@ class QuizService:
                     self.db.add(answer)
             await self.db.commit()
             await self.db.refresh(quiz)
+
+            try:  # notifications trigger
+                members_query = select(company_members.c.user_id).where(
+                    company_members.c.company_id == quiz.company_id,
+                    company_members.c.user_id != current_user.id)
+                members_result = await self.db.execute(members_query)
+                receiver_ids = [row[0] for row in members_result.all()]
+
+                if receiver_ids:
+                    notification_data = NotificationCreate(message=f"Created a new quiz: '{quiz_data.title}'. We invite you to participate!", user_id=receiver_ids[0]) # for pydantic validation
+                    notification_service = NotificationService(self.db)
+
+                    await notification_service.create_notifications(
+                        notification_data, current_user, receiver_ids, company_id)
+            except Exception as e:
+                logger.error(f"Quiz was created, but failed to send notifications: {str(e)}")
+
             return quiz
 
         except Exception as e:
