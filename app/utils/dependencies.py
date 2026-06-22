@@ -7,6 +7,7 @@ from ..database import init_db
 from ..models.company import company_members
 from ..services.notification import NotificationService
 from ..services.quiz import QuizService
+from ..services.quiz_checker import QuizReminderService
 from ..services.user import UserService
 from ..services.analytics import UserAnalytics, CompanyAnalytics
 from ..models.user import User
@@ -38,6 +39,9 @@ async def get_company_analytics_service(db: AsyncSession = Depends(init_db)) -> 
 
 async def get_notification_service(db: AsyncSession = Depends(init_db)) -> NotificationService:
     return NotificationService(db)
+
+async def get_scheduler_service(db: AsyncSession = Depends(init_db)) -> QuizReminderService:
+    return QuizReminderService(db)
 
 async def get_current_user(payload: dict = Depends(verify_auth0_token), service: AuthService = Depends(get_auth_service)) -> User:
     email = payload.get('email')
