@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..core.auth import verify_auth0_token
 from ..database import init_db
 from ..models.company import company_members
+from ..services.notification import NotificationService
 from ..services.quiz import QuizService
 from ..services.user import UserService
 from ..services.analytics import UserAnalytics, CompanyAnalytics
@@ -34,6 +35,9 @@ async def get_user_analytics_service(db: AsyncSession = Depends(init_db)) -> Use
 
 async def get_company_analytics_service(db: AsyncSession = Depends(init_db)) -> CompanyAnalytics:
     return CompanyAnalytics(db)
+
+async def get_notification_service(db: AsyncSession = Depends(init_db)) -> NotificationService:
+    return NotificationService(db)
 
 async def get_current_user(payload: dict = Depends(verify_auth0_token), service: AuthService = Depends(get_auth_service)) -> User:
     email = payload.get('email')
