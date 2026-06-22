@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import status, HTTPException
 
 from ..models.company import company_members
-from ..models.notification import Notification
+from ..models.notitcation import Notification
 from ..models.user import User
 from ..schemas.notification import NotificationCreate
 from ..logger import logger
