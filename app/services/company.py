@@ -8,6 +8,10 @@ from ..models.company import Company, company_members
 from ..schemas.company import CompanyCreate, CompanyUpdate
 from ..logger import logger
 from ..utils.enums import VisibilityStatus
+from ..utils.dependencies import check_admin_role
+
+if TYPE_CHECKING:
+    from .user import UserService
 
 if TYPE_CHECKING:
     from .user import UserService
@@ -248,20 +252,10 @@ class CompanyService:
         user_service = UserService(self.db)
         user = await user_service.get_user_by_id(user_id)  # ensures that user exists & gets user
 
-        user_search = select(company_members).where(
-            and_(
-                company_members.c.company_id == company_id,
-                company_members.c.user_id == user_id))
-        user_presence = await self.db.execute(user_search)
-        member = user_presence.mappings().first()
-
-        if not member:
+        is_admin = await check_admin_role(company_id, user_id, self.db)
+        if not is_admin:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                                detail="You can't fire user from admin role if user isn't a member of company")
-
-        if not member['is_admin']:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                                detail="You can't fire user from admin role who isn't an admin already")
+                                detail="You can't fire the same user twice")
 
         update_user = update(company_members).where(
             and_(

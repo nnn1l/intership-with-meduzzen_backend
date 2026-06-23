@@ -1,10 +1,10 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional, List
-
+from .base import Base
+from sqlalchemy import func
 from sqlalchemy import String, ForeignKey, Integer, Boolean, Float, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from ..models import Base
 
 class Quiz(Base):
     __tablename__ = "quizzes"
@@ -42,7 +42,7 @@ class AnswerOption(Base):
 
 
 class QuizAttempt(Base):
-    __tablename__ = "quiz_attempt"
+    __tablename__ = "quiz_attempts"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     quiz_id: Mapped[int] = mapped_column(ForeignKey('quizzes.id', ondelete="CASCADE"))
@@ -53,7 +53,7 @@ class QuizAttempt(Base):
     total_questions: Mapped[int] = mapped_column(Integer)
     correct_answers: Mapped[int] = mapped_column(Integer, default=0)
 
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
 
     user = relationship("User", back_populates="quiz_attempts")
     quiz = relationship("Quiz", back_populates="quiz_attempts")
