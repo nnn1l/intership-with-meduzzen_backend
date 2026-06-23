@@ -7,6 +7,7 @@ class AnswerCreate(BaseModel):
     is_correct: bool
 
 class AnswerUpdate(BaseModel):
+    id: int
     answer: Optional[str] = None
     is_correct: Optional[bool] = None
 
@@ -35,6 +36,7 @@ class QuestionCreate(BaseModel):
         return a
 
 class QuestionUpdate(BaseModel):
+    id: int
     title: Optional[str] = None
     answers: Optional[List[AnswerUpdate]] = None
 
