@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import ForeignKey, String, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from ..models import Base
+from .base import Base
 
 class Notification(Base):
     __tablename__ = 'notifications'
