@@ -42,7 +42,7 @@ async def delete_quiz(quiz_id: int,
                       current_user: User = Depends(get_current_user)):
     return await service.delete_quiz(quiz_id, current_user)
 
-@router.post('/{quiz_id}/take-quiz', response_model=QuizResultResponse, status_code=status.HTTP_201_CREATED)
+@router.post('/{quiz_id}', response_model=QuizResultResponse, status_code=status.HTTP_201_CREATED)
 async def create_quiz_attempt(quiz_id: int,
                               answers: QuizSubmit,
                               service: QuizService = Depends(get_quiz_service),
