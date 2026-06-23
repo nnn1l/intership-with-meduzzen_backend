@@ -2,8 +2,9 @@ from typing import List
 
 from fastapi import APIRouter, status
 from fastapi.params import Depends, Query
+from watchfiles import awatch
 
-from ..schemas.quiz import QuizResponse, QuizCreate, QuizUpdate
+from ..schemas.quiz import QuizResponse, QuizCreate, QuizUpdate, QuizResultResponse, QuizSubmit
 from ..services.quiz import QuizService
 from ..utils.dependencies import get_current_user, get_quiz_service
 from ..models.user import User
@@ -40,3 +41,21 @@ async def delete_quiz(quiz_id: int,
                       service: QuizService = Depends(get_quiz_service),
                       current_user: User = Depends(get_current_user)):
     return await service.delete_quiz(quiz_id, current_user)
+
+@router.post('/{quiz_id}/take-quiz', response_model=QuizResultResponse, status_code=status.HTTP_201_CREATED)
+async def create_quiz_attempt(quiz_id: int,
+                              answers: QuizSubmit,
+                              service: QuizService = Depends(get_quiz_service),
+                              current_user: User = Depends(get_current_user)):
+    return await service.create_quiz_attempt(quiz_id, answers, current_user)
+
+@router.get('/{company_id}/{user_id}/analytics', response_model=float)
+async def get_user_analytics_in_company(user_id: int,
+                                        company_id: int,
+                                        service: QuizService = Depends(get_quiz_service)):
+    return await service.get_user_analytics_in_company(user_id, company_id)
+
+@router.get('/{user_id}/analytics', response_model=float)
+async def get_user_analytics_global(user_id: int,
+                                    service: QuizService = Depends(get_quiz_service)):
+    return await service.get_user_analytics_global(user_id)
