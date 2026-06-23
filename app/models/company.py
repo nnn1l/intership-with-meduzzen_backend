@@ -2,7 +2,7 @@ from typing import Optional, TYPE_CHECKING, List
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import String, ForeignKey, Enum, Table, Column, Boolean
-from ..models import Base
+from .base import Base
 from ..utils.enums import VisibilityStatus
 
 if TYPE_CHECKING:

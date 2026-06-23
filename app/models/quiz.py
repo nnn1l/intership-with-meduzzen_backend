@@ -1,9 +1,9 @@
 from typing import Optional, List
 
+from .base import Base
 from sqlalchemy import String, ForeignKey, Integer, Boolean, Table, Column
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from ..models import Base
 
 class Quiz(Base):
     __tablename__ = "quizzes"
@@ -35,7 +35,7 @@ class AnswerOption(Base):
     answer: Mapped[str] = mapped_column(String(100), nullable=False)
     is_correct: Mapped[bool] = mapped_column(Boolean)
 
-    question_id: Mapped[int] = mapped_column(ForeignKey("questions_id", ondelete="CASCADE"))
+    question_id: Mapped[int] = mapped_column(ForeignKey("questions.id", ondelete="CASCADE"))
     question: Mapped['Question'] = relationship(back_populates='answer_option')
 
 
