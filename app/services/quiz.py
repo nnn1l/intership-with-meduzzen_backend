@@ -27,7 +27,7 @@ class QuizService:
         company_service = CompanyService(self.db)
         company = await company_service.get_company_by_id(company_id)
 
-        admin_role = check_admin_role(company_id, current_user.id)
+        admin_role = await check_admin_role(company_id, current_user.id)
 
         if not admin_role and company.owner_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
@@ -96,9 +96,9 @@ class QuizService:
         company_service = CompanyService(self.db)
         company = await company_service.get_company_by_id(quiz.company_id)
 
-        admin_role = check_admin_role(company.id, current_user.id)
+        admin_role = await check_admin_role(company.id, current_user.id)
 
-        if not admin_role or company.owner_id != current_user.id:
+        if not admin_role and company.owner_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                                 detail="You don't have permissions to modify quizzes from this company")
 
@@ -162,7 +162,7 @@ class QuizService:
 
         admin_role = check_admin_role(company.id, current_user.id)
 
-        if not admin_role or company.owner_id != current_user.id:
+        if not admin_role and company.owner_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                                 detail="You don't have permissions to delete quizzes from this company")
 
@@ -205,7 +205,7 @@ class QuizService:
         company_service = CompanyService(self.db)
         company = await company_service.get_company_by_id(quiz.company_id)
 
-        admin_role = check_admin_role(company.id, current_user.id)
+        admin_role = await check_admin_role(company.id, current_user.id)
         if admin_role or company.owner_id == current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                                 detail="Owners and admins of companies aren't allowed to take participation in their own companies' quizzes")
