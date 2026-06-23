@@ -266,39 +266,6 @@ class QuizService:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error during quiz update: {str(e)}")
 
 
-    # GET % OF USER'S CORRECT ANSWERS IN TAKEN QUIZZES INSIDE 1 COMPANY
-    async def get_user_analytics_in_company(self, user_id: int, company_id: int) -> float:
-        statistics = select(
-            func.sum(QuizAttempt.correct_answers).label("total_correct"),
-            func.sum(QuizAttempt.total_questions).label("total_questions")
-        ).where(
-            and_(
-                QuizAttempt.user_id == user_id,
-                QuizAttempt.company_id == company_id
-            )
-        )
-        result = (await self.db.execute(statistics)).first()
-
-        if not result or result.total_questions is None or result.total_questions == 0:
-            return 0.0
-
-        return (result.total_correct / result.total_questions) * 100
-
-
-    # GET % OF USER'S CORRECT ANSWERS IN ALL TAKEN QUIZZES
-    async def get_user_analytics_global(self, user_id: int) -> float:
-        statistics = select(
-            func.sum(QuizAttempt.correct_answers).label("total_correct"),
-            func.sum(QuizAttempt.total_questions).label("total_questions")
-        ).where(QuizAttempt.user_id == user_id)
-        result = (await self.db.execute(statistics)).first()
-
-        if not result or result.total_questions is None or result.total_questions == 0:
-            return 0.0
-
-        return (result.total_correct / result.total_questions) * 100
-
-
     # TEMPORARILY SAVES ANSWER FOR 1 QUESTION IN REDIS FOR 48 HOURS
     async def save_question_progress(self, redis: Redis, quiz_id: int, user_id: int, answer_data: UserAnswerSubmit):
         redis_key = f"quiz_progress:{user_id}:{quiz_id}"

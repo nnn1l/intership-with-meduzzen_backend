@@ -139,8 +139,9 @@ class CompanyService:
                 company_members.c.company_id == company_id,
                 company_members.c.user_id == fired_user_id))
         user_presence = await self.db.execute(user_search)
+        member = user_presence.mappings().first()
 
-        if not user_presence.scalar_one_or_none():
+        if not member:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                 detail="This user isn't in this company")
 
@@ -168,8 +169,9 @@ class CompanyService:
                 company_members.c.company_id == company_id,
                 company_members.c.user_id == current_user.id))
         user_presence = await self.db.execute(user_search)
+        member = user_presence.mappings().first()
 
-        if not user_presence.scalar_one_or_none():
+        if not member:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                 detail="You're not in this company to have ability to leave")
 
