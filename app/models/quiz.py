@@ -1,10 +1,10 @@
 from datetime import datetime, timezone
 from typing import Optional, List
 
-from sqlalchemy import String, ForeignKey, Integer, Boolean, Float, DateTime
+from .base import Base
+from sqlalchemy import String, ForeignKey, Integer, Boolean, Table, Column
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from ..models import Base
 
 class Quiz(Base):
     __tablename__ = "quizzes"
