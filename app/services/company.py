@@ -8,13 +8,10 @@ from ..models.company import Company, company_members
 from ..schemas.company import CompanyCreate, CompanyUpdate
 from ..logger import logger
 from ..utils.enums import VisibilityStatus
-from ..utils.dependencies import check_admin_role
 
 if TYPE_CHECKING:
     from .user import UserService
-
-if TYPE_CHECKING:
-    from .user import UserService
+    from ..utils.dependencies import check_admin_role
 
 class CompanyService:
     def __init__(self, db_session: AsyncSession):
