@@ -3,7 +3,6 @@ from typing import List
 from fastapi import APIRouter, status
 from fastapi.params import Depends, Query
 from redis.asyncio import Redis
-from watchfiles import awatch
 
 from ..redis_client import get_redis
 from ..schemas.quiz import QuizResponse, QuizCreate, QuizUpdate, QuizResultResponse, QuizSubmit, UserAnswerSubmit
