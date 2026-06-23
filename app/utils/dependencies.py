@@ -56,6 +56,6 @@ async def check_admin_role(company_id: int, user_id: int, db: AsyncSession = Dep
     member = user_presence.mappings().first()
 
     if not member:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="This user isn't a member of company")
+        return False
 
     return bool(member['is_admin'])  # if user is amin -> True, otherwise -> false

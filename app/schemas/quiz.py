@@ -1,6 +1,25 @@
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, field_validator
 from typing import Optional, List
 
+class UserAnswerSubmit(BaseModel):
+    question_id: int
+    chosen_answer_id: List[int]
+
+class QuizSubmit(BaseModel):
+    answers: List[UserAnswerSubmit]
+
+class QuizResultResponse(BaseModel):
+    id: int
+    user_id: int
+    quiz_id: int
+    score: float
+    total_questions: int
+    correct_answers: int
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
 
 class AnswerCreate(BaseModel):
     answer: str
