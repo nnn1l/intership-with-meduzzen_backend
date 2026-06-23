@@ -2,7 +2,6 @@ from typing import List
 
 from fastapi import APIRouter, status
 from fastapi.params import Depends, Query
-from watchfiles import awatch
 
 from ..schemas.quiz import QuizResponse, QuizCreate, QuizUpdate, QuizResultResponse, QuizSubmit
 from ..services.quiz import QuizService
