@@ -68,19 +68,24 @@ async def get_company_members(company_id: int,
                               service: CompanyService = Depends(get_company_service)):
     return await service.get_company_members(company_id, limit, offset)
 
-@router.patch('/{company_id}/appoint_admin/{user_id}', response_model=CompanyMemberResponse)
+@router.patch('/{company_id}/members/{user_id}/role', response_model=CompanyMemberResponse)
 async def appoint_admin(company_id: int,
                         user_id: int,
                         service: CompanyService = Depends(get_company_service),
                         current_user: User = Depends(get_current_user)):
     return await service.appoint_admin(company_id, user_id, current_user)
 
-@router.patch('/{company_id}/decline_admin_role/{user_id}', response_model=CompanyMemberResponse)
+@router.patch('/{company_id}/members/{user_id}/role', response_model=CompanyMemberResponse)
 async def decline_admin_role(company_id: int,
                         user_id: int,
                         service: CompanyService = Depends(get_company_service),
                         current_user: User = Depends(get_current_user)):
     return await service.decline_admin_role(company_id, user_id, current_user)
 
+@router.get('/{company_id}/administration', response_model=List[CompanyMemberResponse])
+async def get_administration(company_id: int,
+                             service: CompanyService = Depends(get_company_service),
+                             current_user: User = Depends(get_current_user)):
+    return await service.get_company_administration(company_id, current_user)
 
 
