@@ -1,4 +1,4 @@
-from sqlalchemy import String
+from sqlalchemy import String, DateTime, func
 from typing import Optional, List, TYPE_CHECKING
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
@@ -18,7 +18,7 @@ class User(Base):
     description: Mapped[Optional[str]] = mapped_column(String(300))
     hashed_password: Mapped[str] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(default=True)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.now)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
 
     owned_companies: Mapped[List["Company"]] = relationship(back_populates='owner')
     companies: Mapped[List['Company']] = relationship(secondary='company_members', back_populates='members')
