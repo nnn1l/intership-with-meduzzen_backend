@@ -13,6 +13,7 @@ from ..services.quiz import QuizService
 from ..utils.csv import conver_to_csv
 from ..utils.dependencies import get_current_user, get_quiz_service
 from ..models.user import User
+from ..utils.enums import ExportFormatType
 
 router = APIRouter()
 
@@ -80,14 +81,14 @@ async def save_interim_answer(quiz_id: int,
     )
     return {'status': 'success', 'detail': {'Answer cached in Redis'}}
 
-@router.get("/{company_id}-quizzes-results", response_class=StreamingResponse)
+@router.get("/{company_id}/quizzes/results/export", response_class=StreamingResponse)
 async def company_quizzes_export(company_id: int,
                                         user_id: int = None,
                                         quiz_id: int = None,
                                         redis: Redis = Depends(get_redis),
                                         current_user: User = Depends(get_current_user),
                                         service: QuizService = Depends(get_quiz_service),
-                                        format_: str = Query("json", pattern="^(json|csv)$")):
+                                        format_: ExportFormatType = Query(ExportFormatType.JSON)):
     export_data = await service.get_company_quizzes_export(
         redis=redis,
         current_user=current_user,
@@ -100,7 +101,7 @@ async def company_quizzes_export(company_id: int,
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="No found results for export by chosen filters")
 
-    if format_ == "csv":
+    if format_ == ExportFormatType.CSV:
         csv_string = await conver_to_csv(export_data)
 
         file_stream = io.BytesIO(csv_string.encode("utf-8"))
@@ -119,13 +120,12 @@ async def company_quizzes_export(company_id: int,
         headers={"Content-Disposition": f"attachment; filename=company_{company_id}_export.json"}
     )
 
-@router.get("/my-results", response_class=StreamingResponse)
-async def user_personal_quizzes_export(user_id: int = None,
-                                        quiz_id: int = None,
-                                        redis: Redis = Depends(get_redis),
-                                        current_user: User = Depends(get_current_user),
-                                        service: QuizService = Depends(get_quiz_service),
-                                        format_: str = Query("json", pattern="^(json|csv)$")):
+@router.get("/personal/results/export", response_class=StreamingResponse)
+async def user_personal_quizzes_export(quiz_id: int = None,
+                                       redis: Redis = Depends(get_redis),
+                                       current_user: User = Depends(get_current_user),
+                                       service: QuizService = Depends(get_quiz_service),
+                                       format_: str = Query("json", pattern="^(json|csv)$")):
     export_data = await service.get_user_personal_quizzes_export(
         redis=redis,
         current_user=current_user,
