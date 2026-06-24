@@ -1,11 +1,11 @@
 from fastapi import status, HTTPException
 from pydantic import EmailStr
-from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Tuple, List, Optional
+from typing import List, Optional
 
 from ..logger import logger
 from ..models.user import User
+from ..repositories.base import add_to_db, delete_from_db, refresh_data_in_db, get_by_filter, get_with_pagination
 from ..schemas.user import UserSignUp, UserUpdate
 
 
@@ -26,9 +26,7 @@ class UserService:
                 hashed_password=hashed_password
             )
 
-            self.db.add(new_user)
-            await  self.db.commit()
-            await self.db.refresh(new_user)
+            await add_to_db(new_user, self.db)
             return new_user
 
         except Exception as e:
@@ -37,24 +35,14 @@ class UserService:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error during user creation")
 
     # GETTING ALL USERS WITH PAGINATION
-    async def get_all_users(self, limit: int=10, offset: int=0) -> Tuple[List[User],int]:
+    async def get_all_users(self, limit: int=10, offset: int=0) -> List[User]:
         #getting list of users with limit and offset
-        query = select(User).limit(limit).offset(offset)
-        result = await self.db.execute(query)
-        users = result.scalars().all()
-
-        #counting amount for full response schema
-        count_query = select(func.count()).select_from(User)
-        count_result = await self.db.execute(count_query)
-        total = count_result.scalar() or 0
-
-        return list(users), total
+        users = await get_with_pagination(User, limit, offset, self.db)
+        return list(users)
 
     # GET USER BY ID
     async def get_user_by_id(self, user_id: int) -> Optional[User]:
-        query = select(User).where(User.id == user_id)
-        result = await self.db.execute(query)
-        found_user = result.scalar_one_or_none()
+        found_user = await get_by_filter(User, self.db, id=user_id)
         if not found_user:
             logger.info(f"User with ID {user_id} not found")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -78,8 +66,7 @@ class UserService:
         for key, value in filtered_data.items():
             setattr(user, key, value)
 
-        await self.db.commit()
-        await self.db.refresh(user)
+        await refresh_data_in_db(user)
         logger.info(f"User ID {user_id} modified successfully")
 
         return user
@@ -95,17 +82,14 @@ class UserService:
                 detail="User not found"
                 )
 
-        await self.db.delete(user)
-        await self.db.commit()
+        await delete_from_db(user, self.db)
         logger.info(f"User ID {user_id} deleted successfully")
 
         return True
 
     # GET USER BY EMAIL
     async def get_user_by_email(self, email: EmailStr) -> User:
-        query = select(User).where(User.email == email)
-        result = await self.db.execute(query)
-        found_user = result.scalar_one_or_none()
+        found_user = await get_by_filter(User, self.db, email=email)
 
         if not found_user:
             logger.info(f"User with e-mail {email} not found")
