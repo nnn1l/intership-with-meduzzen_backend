@@ -12,3 +12,7 @@ class Status(Enum):
     PENDING = 'pending'
     ACCEPTED = 'accepted'
     DECLINED = 'declined'
+
+class ExportFormatType(Enum):
+    CSV = 'csv'
+    JSON = 'json'

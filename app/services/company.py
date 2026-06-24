@@ -1,20 +1,20 @@
 from typing import List, TYPE_CHECKING
 
-from sqlalchemy import select, and_, delete, update
 from ..models.user import User
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
 from ..models.company import Company, company_members
+from ..repositories.base import add_to_db, get_by_filter, get_with_pagination, refresh_data_in_db, delete_from_db, \
+    delete_table_record_by_filter, update_table_record_by_filter
 from ..schemas.company import CompanyCreate, CompanyUpdate
 from ..logger import logger
 from ..utils.enums import VisibilityStatus
-from ..utils.dependencies import check_admin_role
+from ..repositories.company import check_admin_role, is_user_member_of_company, get_company_administration, \
+    get_company_members
 
 if TYPE_CHECKING:
     from .user import UserService
 
-if TYPE_CHECKING:
-    from .user import UserService
 
 class CompanyService:
     def __init__(self, db_session: AsyncSession):
@@ -32,9 +32,7 @@ class CompanyService:
                 owner_id = owner_id
             )
 
-            self.db.add(company)
-            await self.db.commit()
-            await self.db.refresh(company)
+            await add_to_db(company, self.db)
             return company
 
         except Exception as e:
@@ -46,9 +44,7 @@ class CompanyService:
 
     # GET COMPANY BY ID
     async def get_company_by_id(self, company_id: int) -> Company:
-        query = select(Company).where(Company.id == company_id)
-        result = await self.db.execute(query)
-        company = result.scalar_one_or_none()
+        company = await get_by_filter(Company, self.db, id=company_id)
 
         if not company:
             logger.error(f"Company with ID {company_id} wasn't found")
@@ -58,13 +54,9 @@ class CompanyService:
 
 
     async def get_companies(self, limit: int, offset: int) -> List[Company]:
-        query = (select(Company)
-                .where(Company.visibility == VisibilityStatus.VISIBLE_TO_ALL)
-                .limit(limit)
-                .offset(offset))
+        companies = await get_with_pagination(Company, limit, offset, self.db)
 
-        result = await self.db.execute(query)
-        return list(result.scalars().all())
+        return list(companies)
 
 
     # UPDATE COMPANY
@@ -81,8 +73,7 @@ class CompanyService:
         for key, value in update_data.items():
             setattr(company, key, value)
 
-        await self.db.commit()
-        await self.db.refresh(company)
+        await refresh_data_in_db(company, self.db)
         logger.info(f"Company {company_data.name} successfully modified")
         return company
 
@@ -97,8 +88,7 @@ class CompanyService:
                  detail="You don't have permission to delete this company"
              )
 
-        await self.db.delete(company)
-        await self.db.commit()
+        await delete_from_db(company, self.db)
         logger.info(f"Company ID {company_id} deleted successfully")
         return True
 
@@ -117,6 +107,7 @@ class CompanyService:
             company.visibility = VisibilityStatus.HIDDEN
         else:
             company.visibility = VisibilityStatus.VISIBLE_TO_ALL
+        await refresh_data_in_db(company)
 
         return True
 
@@ -134,24 +125,13 @@ class CompanyService:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                                 detail="You don't have permissions to fire user from this company")
 
-        user_search = select(company_members.c.user_id).where(
-            and_(
-                company_members.c.company_id == company_id,
-                company_members.c.user_id == fired_user_id))
-        user_presence = await self.db.execute(user_search)
-        member = user_presence.mappings().first()
+        user_presence = await is_user_member_of_company(fired_user_id, company_id, self.db)
 
-        if not member:
+        if not user_presence:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                 detail="This user isn't in this company")
 
-        fire = delete(company_members).where(
-            and_(
-                company_members.c.company_id == company_id,
-                company_members.c.user_id == fired_user_id))
-
-        await self.db.execute(fire)
-        await self.db.commit()
+        await delete_table_record_by_filter(company_members, self.db, user_id=fired_user_id, company_id=company_id)
         logger.info(f"User with ID {fired_user_id} fired from company with ID {company_id}")
         return True
 
@@ -164,23 +144,13 @@ class CompanyService:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                                 detail="You can't leave from your own company")
 
-        user_search = select(company_members.c.user_id).where(
-            and_(
-                company_members.c.company_id == company_id,
-                company_members.c.user_id == current_user.id))
-        user_presence = await self.db.execute(user_search)
-        member = user_presence.mappings().first()
+        user_presence = await is_user_member_of_company(current_user.id, company_id, self.db)
 
-        if not member:
+        if not user_presence:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                 detail="You're not in this company to have ability to leave")
 
-        leave = delete(company_members).where(
-            and_(
-                company_members.c.company_id == company_id,
-                company_members.c.user_id == current_user.id))
-        await self.db.execute(leave)
-        await self.db.commit()
+        await delete_table_record_by_filter(company_members, self.db, user_id=current_user.id, company_id=company_id)
         logger.info(f"User with ID {current_user.id} left a company with ID {company_id}")
         return True
 
@@ -188,14 +158,10 @@ class CompanyService:
     # GET COMPANY'S MEMBERS
     async def get_company_members(self, company_id: int, limit: int, offset: int):
         await self.get_company_by_id(company_id)
+        members = await get_company_members(company_id, limit, offset, self.db)
 
-        members = (select(User).join(company_members, User.id == company_members.c.user_id)
-            .where(company_members.c.company_id == company_id)
-            .limit(limit)
-            .offset(offset))
+        return members
 
-        result = await self.db.execute(members)
-        return result.scalars().all()
 
 
     # APPOINT ADMIN
@@ -213,27 +179,19 @@ class CompanyService:
         user_service = UserService(self.db)
         user = await user_service.get_user_by_id(user_id) # ensures that user exists & gets user
 
-        user_search = select(company_members).where(
-            and_(
-                company_members.c.company_id == company_id,
-                company_members.c.user_id == user_id))
-        user_presence = await self.db.execute(user_search)
-        member = user_presence.mappings().first()
+        user_presence = await is_user_member_of_company(user_id, company_id, self.db)
 
-        if not member:
+        if not user_presence:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                 detail="You can't appoint user as an admin if user isn't a member of company")
 
-        if member['is_admin']:
+        admin_role = await check_admin_role(company_id, user_id, self.db)
+
+        if admin_role:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                 detail="You can't appoint user as an admin twice")
 
-        update_user = update(company_members).where(
-            and_(
-                company_members.c.company_id == company_id,
-                company_members.c.user_id == user_id)).values(is_admin=True)
-        await self.db.execute(update_user)
-        await self.db.commit()
+        await update_table_record_by_filter(company_members,{"is_admin":True}, self.db, company_id=company_id, user_id=user_id)
         return user
 
 
@@ -252,30 +210,24 @@ class CompanyService:
         user_service = UserService(self.db)
         user = await user_service.get_user_by_id(user_id)  # ensures that user exists & gets user
 
+        user_presence = await is_user_member_of_company(user_id, company_id, self.db)
+        if not user_presence:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="You can't decline user's admin role if user isn't a member of company")
+
         is_admin = await check_admin_role(company_id, user_id, self.db)
         if not is_admin:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                 detail="You can't fire the same user twice")
 
-        update_user = update(company_members).where(
-            and_(
-                company_members.c.company_id == company_id,
-                company_members.c.user_id == user_id)).values(is_admin=False)
-        await self.db.execute(update_user)
-        await self.db.commit()
+        await update_table_record_by_filter(company_members,{"is_admin":False}, self.db, company_id=company_id, user_id=user_id)
         return user
 
 
     # GET COMPANY'S ADMINISTRATION
     async def get_company_administration(self, company_id: int):
         await self.get_company_by_id(company_id) # ensuring that company exists
+        admins = await get_company_administration(company_id, self.db)
 
-        admins = select(User).where(
-            and_(
-                company_members.c.company_id == company_id,
-                company_members.c.is_admin == True
-            )
-        )
+        return admins
 
-        administration = await self.db.execute(admins)
-        return administration.scalars().all()
