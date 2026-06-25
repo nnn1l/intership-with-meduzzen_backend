@@ -5,6 +5,7 @@ from sqlalchemy import func
 from sqlalchemy import String, ForeignKey, Integer, Boolean, Float, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from .base import Base
 
 class Quiz(Base):
     __tablename__ = "quizzes"
