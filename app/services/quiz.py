@@ -339,18 +339,14 @@ class QuizService:
         company_service = CompanyService(self.db)
         company = await company_service.get_company_by_id(company_id) # ensures that company exists & gets company
 
-        admin_role = check_admin_role(company_id, current_user.id)
-        if not admin_role or company.owner_id != current_user.id:
+        admin_role = await check_admin_role(company_id, current_user.id)
+        if not admin_role and company.owner_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                                 detail="You aren't an admin/owner of this company")
 
         if user_id is not None:
-            user_search = select(company_members).where(
-                and_(
-                    company_members.c.user_id == user_id,
-                    company_members.c.company_id == company_id))
-            user_presence = await self.db.execute(user_search)
-            if not user_presence.mappings().first():
+            user_presence = await is_user_member_of_company(user_id, company_id, self.db)
+            if not user_presence:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                                     detail="You can't check quiz results of a user that isn't a member of your company")
 
@@ -385,7 +381,7 @@ class QuizService:
                 progress = await self.get_quiz_progress(redis, found_user_id, found_quiz_id)
                 for q_id, ans_data in progress.items():
                     export_results.append({
-                        "user_id": current_user.id,
+                        "user_id": user_id,
                         "quiz_id": found_quiz_id,
                         "question_id": q_id,
                         "answer_id": ans_data
