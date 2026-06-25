@@ -3,7 +3,8 @@ from typing import List
 from fastapi import APIRouter, status
 from fastapi.params import Depends, Query
 
-from ..schemas.company import CompanyResponse, CompanyCreate, CompanyUpdate, CompanyMemberResponse
+from ..schemas.company import CompanyResponse, CompanyCreate, CompanyUpdate, CompanyMemberResponse, \
+    CompanyVisibilityResponse
 from ..services.company import CompanyService
 from ..utils.dependencies import get_company_service, get_current_user
 from ..models.user import User
@@ -42,7 +43,7 @@ async def delete_company(company_id: int,
                          current_user: User = Depends(get_current_user)):
     await service.delete_company(company_id, current_user.id)
 
-@router.patch('/{company_id}/toggle-visibility', response_model=bool)
+@router.patch('/{company_id}/toggle-visibility', response_model=CompanyVisibilityResponse)
 async def change_company_visibility(company_id: int,
                                     service: CompanyService = Depends(get_company_service),
                                     current_user: User = Depends(get_current_user)):
@@ -82,10 +83,9 @@ async def decline_admin_role(company_id: int,
                         current_user: User = Depends(get_current_user)):
     return await service.decline_admin_role(company_id, user_id, current_user)
 
-@router.get('/{company_id}/administration', response_model=List[CompanyMemberResponse])
+@router.get('/{company_id}/administration', response_model=List[User])
 async def get_administration(company_id: int,
-                             service: CompanyService = Depends(get_company_service),
-                             current_user: User = Depends(get_current_user)):
-    return await service.get_company_administration(company_id, current_user)
+                             service: CompanyService = Depends(get_company_service)):
+    return await service.get_company_administration(company_id)
 
 
