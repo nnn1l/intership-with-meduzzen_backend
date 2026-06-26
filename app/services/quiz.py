@@ -3,17 +3,14 @@ from typing import TYPE_CHECKING, List
 
 from fastapi import HTTPException, status
 from redis.asyncio import Redis
-from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..logger import logger
 from ..models.user import User
-from ..models.quiz import Quiz
 from ..repositories.base import delete_from_db, get_with_pagination
 from ..repositories.quiz import create_quiz, get_quiz_by_id, update_quiz
-from ..schemas.quiz import QuizCreate, QuizUpdate
-from ..models.quiz import Quiz, Question, AnswerOption, QuizAttempt
-from ..schemas.quiz import QuizCreate, QuizUpdate, AnswerUpdate, QuizSubmit, UserAnswerSubmit
+from ..models.quiz import Quiz
+from ..schemas.quiz import QuizCreate, QuizUpdate, QuizSubmit, UserAnswerSubmit
 
 if TYPE_CHECKING:
     from .company import CompanyService
@@ -90,30 +87,45 @@ class QuizService:
         logger.info(f"Quiz with ID {quiz_id} deleted successfully")
 
 
-
-
     # TEMPORARILY SAVES ANSWER FOR 1 QUESTION IN REDIS FOR 48 HOURS
     async def save_question_progress(self, redis: Redis, quiz_id: int, user_id: int, answer_data: UserAnswerSubmit):
         redis_key = f"quiz_progress:{user_id}:{quiz_id}"
 
-        await redis.hset(redis_key, str(answer_data.question_id), json.dumps(answer_data.chosen_answer_id))
-        await redis.expire(redis_key, 172800) #48 hours
+        async with redis.pipeline(transaction=True) as pipe:
+            await pipe.hset(
+                redis_key,
+                str(answer_data.question_id),
+                json.dumps(answer_data.chosen_answer_id))
+            await pipe.expire(redis_key, 172800)  # 48 hours
+
+            await pipe.execute()
 
 
     # GETS ALL STORED ANSWERS IN REDIS FOR PAST 48 HOURS
     async def get_quiz_progress(self, redis: Redis, user_id: int, quiz_id: int) -> dict:
-        redis_key = f"quiz_progress:{user_id}:{quiz_id}"
-        stored_data = await redis.hgetall(redis_key)
+            redis_key = f"quiz_progress:{user_id}:{quiz_id}"
+            stored_data = await redis.hgetall(redis_key)
 
-        if not stored_data:
-            return {}
+            if not stored_data:
+                return {}
 
-        return {int(q_id): json.loads(val) for q_id, val in stored_data.items()}
-
+            return {int(q_id): json.loads(val) for q_id, val in stored_data.items()}
 
     # DELETES CACHE IN REDIS AFTER SUCCESSFUL QUIZ SAVING IN POSTGRESQL
     async def clear_quiz_progress(self, redis: Redis, user_id: int, quiz_id: int):
-        redis_key = f"quiz_progress:{user_id}:{quiz_id}"
-        await redis.delete(redis_key)
+            redis_key = f"quiz_progress:{user_id}:{quiz_id}"
+            await redis.delete(redis_key)
+
+
+    # SUBMITS QUIZ
+    async def submit_quiz(self, redis: Redis, current_user: User, quiz_id: int, submission_data: QuizSubmit):
+            user_answers_dict = await self.get_quiz_progress(redis, current_user.id, quiz_id)
+
+            if not user_answers_dict:
+                if submission_data and submission_data.answers:
+                    user_answers_dict = {a.question_id: a.chosen_answer_id for a in submission_data.answers}
+                else:
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                        detail="No answers found in progress or request body. Please answer the questions.")
 
 
