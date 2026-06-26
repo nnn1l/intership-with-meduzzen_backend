@@ -45,4 +45,3 @@ async def validate_profile_owner(user_id: int, current_user: User = Depends(get_
         )
 
     return current_user
-

@@ -6,7 +6,7 @@ from fastapi import HTTPException, status
 from ..models.company import Company, company_members
 from ..repositories.base import add_to_db, get_by_filter, get_with_pagination, refresh_data_in_db, delete_from_db, \
     delete_table_record_by_filter, update_table_record_by_filter
-from ..schemas.company import CompanyCreate, CompanyUpdate
+from ..schemas.company import CompanyCreate, CompanyUpdate, CompanyVisibilityResponse, CompanyMemberResponse
 from ..logger import logger
 from ..utils.enums import VisibilityStatus
 from ..repositories.company import check_admin_role, is_user_member_of_company, get_company_administration, \
@@ -54,7 +54,7 @@ class CompanyService:
 
 
     async def get_companies(self, limit: int, offset: int) -> List[Company]:
-        companies = await get_with_pagination(Company, limit, offset, self.db)
+        companies = await get_with_pagination(Company, self.db, limit, offset)
 
         return list(companies)
 
@@ -79,7 +79,7 @@ class CompanyService:
 
 
     # DELETE COMPANY
-    async def delete_company(self, company_id: int, user_id: int) -> bool:
+    async def delete_company(self, company_id: int, user_id: int):
         company = await self.get_company_by_id(company_id)
 
         if company.owner_id != user_id:
@@ -90,11 +90,10 @@ class CompanyService:
 
         await delete_from_db(company, self.db)
         logger.info(f"Company ID {company_id} deleted successfully")
-        return True
 
 
     # CHANGE COMPANY VISIBILITY
-    async def change_company_visibility(self, company_id: int, user_id: int) -> bool:
+    async def change_company_visibility(self, company_id: int, user_id: int) -> CompanyVisibilityResponse:
         company = await self.get_company_by_id(company_id)
 
         if company.owner_id != user_id:
@@ -102,18 +101,19 @@ class CompanyService:
                  status_code=status.HTTP_403_FORBIDDEN,
                  detail="You don't have permission to modify this company"
              )
-
+        enum = VisibilityStatus.VISIBLE_TO_ALL
         if company.visibility == VisibilityStatus.VISIBLE_TO_ALL:
             company.visibility = VisibilityStatus.HIDDEN
+            enum = VisibilityStatus.HIDDEN
         else:
             company.visibility = VisibilityStatus.VISIBLE_TO_ALL
-        await refresh_data_in_db(company)
+        await refresh_data_in_db(company, self.db)
 
-        return True
+        return CompanyVisibilityResponse(visibility=enum)
 
 
     # FIRE USER FROM COMPANY
-    async def fire_user_from_company(self, company_id: int, fired_user_id: int, current_user: User) -> bool:
+    async def fire_user_from_company(self, company_id: int, fired_user_id: int, current_user: User):
 
         if fired_user_id == current_user.id:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
@@ -133,11 +133,9 @@ class CompanyService:
 
         await delete_table_record_by_filter(company_members, self.db, user_id=fired_user_id, company_id=company_id)
         logger.info(f"User with ID {fired_user_id} fired from company with ID {company_id}")
-        return True
-
 
     # LEAVE COMPANY
-    async def leave_company(self, company_id: int, current_user: User) -> bool:
+    async def leave_company(self, company_id: int, current_user: User):
         company = await self.get_company_by_id(company_id)
 
         if company.owner_id == current_user.id:
@@ -152,7 +150,6 @@ class CompanyService:
 
         await delete_table_record_by_filter(company_members, self.db, user_id=current_user.id, company_id=company_id)
         logger.info(f"User with ID {current_user.id} left a company with ID {company_id}")
-        return True
 
 
     # GET COMPANY'S MEMBERS
@@ -225,9 +222,8 @@ class CompanyService:
 
 
     # GET COMPANY'S ADMINISTRATION
-    async def get_company_administration(self, company_id: int):
+    async def get_company_administration(self, company_id: int) -> list[User]:
         await self.get_company_by_id(company_id) # ensuring that company exists
         admins = await get_company_administration(company_id, self.db)
 
         return admins
-
