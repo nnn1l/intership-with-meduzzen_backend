@@ -8,14 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..logger import logger
 from ..models.user import User
 from ..repositories.base import delete_from_db, get_with_pagination
-from ..repositories.company import is_user_member_of_company
+from ..repositories.company import is_user_member_of_company, check_admin_role
 from ..repositories.quiz import create_quiz, get_quiz_by_id, update_quiz
 from ..models.quiz import Quiz
 from ..schemas.quiz import QuizCreate, QuizUpdate, QuizSubmit, UserAnswerSubmit
 
 if TYPE_CHECKING:
     from .company import CompanyService
-    from ..utils.dependencies import check_admin_role
 
 class QuizService:
     def __init__(self, db_session: AsyncSession):
@@ -28,7 +27,7 @@ class QuizService:
         company_service = CompanyService(self.db)
         company = await company_service.get_company_by_id(company_id)
 
-        admin_role = check_admin_role(company_id, current_user.id)
+        admin_role = await check_admin_role(company_id, current_user.id)
 
         if not admin_role and company.owner_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
@@ -61,7 +60,7 @@ class QuizService:
         company_service = CompanyService(self.db)
         company = await company_service.get_company_by_id(quiz.company_id)
 
-        admin_role = check_admin_role(company.id, current_user.id)
+        admin_role = await check_admin_role(company.id, current_user.id)
 
         if not admin_role or company.owner_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,

@@ -45,17 +45,3 @@ async def validate_profile_owner(user_id: int, current_user: User = Depends(get_
         )
 
     return current_user
-
-async def check_admin_role(company_id: int, user_id: int, db: AsyncSession = Depends(init_db)) -> bool:
-
-    user_search = select(company_members).where(
-        and_(
-            company_members.c.company_id == company_id,
-            company_members.c.user_id == user_id))
-    user_presence = await db.execute(user_search)
-    member = user_presence.mappings().first()
-
-    if not member:
-        return False
-
-    return bool(member['is_admin'])  # if user is amin -> True, otherwise -> false
