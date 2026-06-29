@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import List
 
 from fastapi import HTTPException, status
@@ -6,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from ..logger import logger
-from ..models import Quiz, Question, AnswerOption, QuizAttempt, User
+from ..models import Quiz, Question, AnswerOption, QuizAttempt, User, company_members
 from ..schemas.quiz import QuizCreate, QuizUpdate, AnswerUpdate
 
 
@@ -136,3 +137,17 @@ async def check_max_attepmts(quiz: Quiz, current_user: User, db: AsyncSession):
     if quiz.max_attempts <= attempts:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail=f"You've reached the maximum limit of {quiz.max_attempts} attempts for this quiz")
+
+async def get_members_ids_of_company_by_quiz(quiz: Quiz, db: AsyncSession) -> list[int]:
+    members_query = select(company_members.c.user_id).where(
+        company_members.c.company_id == quiz.company_id)
+    result = await db.execute(members_query)
+    return [row[0] for row in result.all()]
+
+async def get_members_completed_quiz(quiz: Quiz, time_limit: datetime, db: AsyncSession) -> list[int]:
+    completed_query = select(QuizAttempt.user_id).where(
+        and_(
+            QuizAttempt.quiz_id == quiz.id,
+            QuizAttempt.updated_at >= time_limit))
+    completed_result = await db.execute(completed_query)
+    return [row[0] for row in completed_result.all()]

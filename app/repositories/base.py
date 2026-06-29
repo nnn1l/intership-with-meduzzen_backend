@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import Depends, HTTPException, status
+from fastapi import HTTPException, status
 from sqlalchemy import select, and_, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.schema import Table
@@ -102,7 +102,7 @@ async def update_table_record_by_filter(table: Table, values: dict[str, Any], db
             detail=f"Internal server error during data update: {str(e)}")
 
         
-async def delete_table_record_by_filter(table: Table, db: AsyncSession = Depends(init_db), **filters: Any) -> bool:
+async def delete_table_record_by_filter(table: Table, db: AsyncSession, **filters: Any) -> bool:
     try:
         conditions = [table.c[key] == value for key, value in filters.items()]
 
@@ -119,7 +119,7 @@ async def delete_table_record_by_filter(table: Table, db: AsyncSession = Depends
                             detail=f"Internal server error during data deletion: {str(e)}")
 
 
-async def insert_table_record(table: Table, data: dict[str, Any], db: AsyncSession = Depends(init_db)) -> bool:
+async def insert_table_record(table: Table, data: dict[str, Any], db: AsyncSession) -> bool:
     try:
         query = table.insert().values(**data)
 
@@ -132,3 +132,13 @@ async def insert_table_record(table: Table, data: dict[str, Any], db: AsyncSessi
         logger.error(f"Error inserting into table {table.name} with data {data}: {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail=f"Internal server error during data insertion: {str(e)}")
+
+async def select_all(model, db: AsyncSession):
+    try:
+        query = select(model)
+        return (await db.execute(query)).scalars().all()
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error searching query: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"Internal server error during data searching: {str(e)}")
