@@ -169,6 +169,13 @@ class QuizService:
         total_questions=total_questions,
         correct_answers=correct_answer_count)
 
+        await add_to_db(new_attempt, self.db)
+
+        await self.clear_quiz_progress(redis, current_user.id, quiz_id)
+
+        return new_attempt
+
+
     # TEMPORARILY SAVES ANSWER FOR 1 QUESTION IN REDIS FOR 48 HOURS
     async def save_question_progress(self, redis: Redis, quiz_id: int, user_id: int, answer_data: UserAnswerSubmit):
         redis_key = f"quiz_progress:{user_id}:{quiz_id}"
@@ -192,12 +199,6 @@ class QuizService:
     async def clear_quiz_progress(self, redis: Redis, user_id: int, quiz_id: int):
         redis_key = f"quiz_progress:{user_id}:{quiz_id}"
         await redis.delete(redis_key)
-        await add_to_db(new_attempt, self.db)
-
-        await self.clear_quiz_progress(redis, current_user.id, quiz_id)
-
-        return new_attempt
-
 
 
     # GET USER PERSONAL QUIZZES EXPORT
