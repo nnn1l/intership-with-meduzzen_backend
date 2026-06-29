@@ -9,7 +9,7 @@ from ..database import init_db
 from ..logger import logger
 
 
-async def add_to_db(model, db: AsyncSession = Depends(init_db)):
+async def add_to_db(model, db: AsyncSession):
     try:
         db.add(model)
         await db.commit()
@@ -19,8 +19,9 @@ async def add_to_db(model, db: AsyncSession = Depends(init_db)):
         logger.error(f'Error occurred while adding {model} to db')
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail=f"Internal server error during adding model: {str(e)}")
-    
-async def refresh_data_in_db(model, db: AsyncSession = Depends(init_db)):
+
+
+async def refresh_data_in_db(model, db: AsyncSession):
     try:
         await db.commit()
         await db.refresh(model)
@@ -30,8 +31,9 @@ async def refresh_data_in_db(model, db: AsyncSession = Depends(init_db)):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail=f"Internal server error during model refreshing: {str(e)}")
 
-async def delete_from_db(model, db: AsyncSession = Depends(init_db)):
-    try:    
+
+async def delete_from_db(model, db: AsyncSession):
+    try:
         await db.delete(model)
         await db.commit()
     except Exception as e:
@@ -39,8 +41,9 @@ async def delete_from_db(model, db: AsyncSession = Depends(init_db)):
         logger.error(f'Error occurred while deleting {model} from db')
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail=f"Internal server error during model deletion: {str(e)}")
-    
-async def get_by_filter(model, db: AsyncSession = Depends(init_db), **filters: Any) -> Any | None:
+
+
+async def get_by_filter(model, db: AsyncSession, **filters: Any) -> Any | None:
     try:
         query = select(model).filter_by(**filters)
         result = await db.execute(query)
@@ -50,8 +53,9 @@ async def get_by_filter(model, db: AsyncSession = Depends(init_db), **filters: A
         logger.error(f'Error occurred while fetching {model.__name__} by filter {filters}: {str(e)}')
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail=f"Internal server error during model fetching: {str(e)}")
-    
-async def get_with_pagination(model, limit: int = 10, offset: int = 0, db: AsyncSession = Depends(init_db)):
+
+
+async def get_with_pagination(model, db: AsyncSession, limit: int = 10, offset: int = 0):
     try:
         query = select(model).limit(limit).offset(offset)
         result = await db.execute(query)
@@ -63,7 +67,8 @@ async def get_with_pagination(model, limit: int = 10, offset: int = 0, db: Async
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail=f"Internal server error during model fetching: {str(e)}")
 
-async def get_table_record_by_filter(table: Table, db: AsyncSession = Depends(init_db), **filters: Any) -> Any | None:
+
+async def get_table_record_by_filter(table: Table, db: AsyncSession, **filters: Any) -> Any | None:
     try:
         conditions = [table.c[key] == value for key, value in filters.items()]
 
@@ -77,7 +82,9 @@ async def get_table_record_by_filter(table: Table, db: AsyncSession = Depends(in
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail=f"Internal server error during data fetching: {str(e)}")
 
-async def update_table_record_by_filter(table: Table, values: dict[str, Any], db: AsyncSession = Depends(init_db), **filters: Any) -> bool:
+
+async def update_table_record_by_filter(table: Table, values: dict[str, Any], db: AsyncSession,
+                                        **filters: Any) -> bool:
     try:
         conditions = [table.c[key] == value for key, value in filters.items()]
 
@@ -94,6 +101,7 @@ async def update_table_record_by_filter(table: Table, values: dict[str, Any], db
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Internal server error during data update: {str(e)}")
 
+        
 async def delete_table_record_by_filter(table: Table, db: AsyncSession = Depends(init_db), **filters: Any) -> bool:
     try:
         conditions = [table.c[key] == value for key, value in filters.items()]
@@ -109,6 +117,7 @@ async def delete_table_record_by_filter(table: Table, db: AsyncSession = Depends
         logger.error(f"Error deleting from table {table.name}: {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail=f"Internal server error during data deletion: {str(e)}")
+
 
 async def insert_table_record(table: Table, data: dict[str, Any], db: AsyncSession = Depends(init_db)) -> bool:
     try:

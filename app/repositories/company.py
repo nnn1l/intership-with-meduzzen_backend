@@ -1,13 +1,12 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import HTTPException, status
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..database import init_db
 from ..models import company_members, User
 from ..logger import logger
 
 
-async def is_user_member_of_company(user_id: int, company_id: int, db: AsyncSession = Depends(init_db)):
+async def is_user_member_of_company(user_id: int, company_id: int, db: AsyncSession):
     try:
         user_search = select(company_members).where(
             and_(
@@ -22,7 +21,7 @@ async def is_user_member_of_company(user_id: int, company_id: int, db: AsyncSess
                             detail=f"Internal server error during query is_user_member_of_company execute: {str(e)}")
 
 
-async def check_admin_role(company_id: int, user_id: int, db: AsyncSession = Depends(init_db)) -> bool:
+async def check_admin_role(company_id: int, user_id: int, db: AsyncSession) -> bool:
     try:
         user_search = select(company_members).where(
             and_(
@@ -40,22 +39,27 @@ async def check_admin_role(company_id: int, user_id: int, db: AsyncSession = Dep
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail=f"Internal server error during query check_admin_role execute: {str(e)}")
 
-async def get_company_administration(company_id: int, db: AsyncSession = Depends(init_db)):
-    admins = select(User).where(
-        and_(
-            company_members.c.company_id == company_id,
-            company_members.c.is_admin == True
+async def get_company_administration(company_id: int, db: AsyncSession) -> list[User]:
+    admins_query = (
+        select(User)
+        .join(company_members, User.id == company_members.c.user_id)
+        .where(
+            and_(
+                company_members.c.company_id == company_id,
+                company_members.c.is_admin == True
+            )
         )
     )
+    result = await db.execute(admins_query)
+    return list(result.scalars().all())
 
-    administration = await db.execute(admins)
-    return administration.scalars().all()
-
-async def get_company_members(company_id: int, limit: int = 10, offset: int = 0, db: AsyncSession = Depends(init_db)):
-    members = (select(User).join(company_members, User.id == company_members.c.user_id)
-               .where(company_members.c.company_id == company_id)
-               .limit(limit)
-               .offset(offset))
-
-    result = await db.execute(members)
-    return result.scalars().all()
+async def get_company_members(company_id: int, limit: int, offset: int, db: AsyncSession) -> list[User]:
+    members_query = (
+        select(User)
+        .join(company_members, User.id == company_members.c.user_id)
+        .where(company_members.c.company_id == company_id)
+        .limit(limit)
+        .offset(offset)
+    )
+    result = await db.execute(members_query)
+    return list(result.scalars().all())
