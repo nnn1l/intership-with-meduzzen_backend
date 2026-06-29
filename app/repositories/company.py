@@ -63,3 +63,13 @@ async def get_company_members(company_id: int, limit: int, offset: int, db: Asyn
     )
     result = await db.execute(members_query)
     return list(result.scalars().all())
+
+
+async def filter_company_members(company_id: int, user_ids: list[int], db: AsyncSession) -> list[int]:
+    user_search = select(company_members.c.user_id).where(
+        and_(
+            company_members.c.company_id == company_id,
+            company_members.c.user_id.in_(user_ids)))
+    user_presence = await db.execute(user_search)
+
+    return [row[0] for row in user_presence.all()]
