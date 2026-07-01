@@ -60,7 +60,7 @@ class QuizService:
 
         admin_role = await check_admin_role(company.id, current_user.id, self.db)
 
-        if not admin_role and company.owner_id != current_user.id:
+        if not admin_role or company.owner_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                                 detail="You don't have permissions to modify quizzes from this company")
 
@@ -77,7 +77,7 @@ class QuizService:
 
         admin_role = await check_admin_role(company.id, current_user.id, self.db)
 
-        if not admin_role and company.owner_id != current_user.id:
+        if not admin_role or company.owner_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                                 detail="You don't have permissions to delete quizzes from this company")
 
