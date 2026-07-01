@@ -25,7 +25,7 @@ class QuizService:
         company_service = CompanyService(self.db)
         company = await company_service.get_company_by_id(company_id)
 
-        admin_role = await check_admin_role(company_id, current_user.id)
+        admin_role = await check_admin_role(company_id, current_user.id, self.db)
 
         if not admin_role and company.owner_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
@@ -58,7 +58,7 @@ class QuizService:
         company_service = CompanyService(self.db)
         company = await company_service.get_company_by_id(quiz.company_id)
 
-        admin_role = await check_admin_role(company.id, current_user.id)
+        admin_role = await check_admin_role(company.id, current_user.id, self.db)
 
         if not admin_role and company.owner_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
@@ -75,7 +75,7 @@ class QuizService:
         company_service = CompanyService(self.db)
         company = await company_service.get_company_by_id(quiz.company_id)
 
-        admin_role = await check_admin_role(company.id, current_user.id)
+        admin_role = await check_admin_role(company.id, current_user.id, self.db)
 
         if not admin_role and company.owner_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,

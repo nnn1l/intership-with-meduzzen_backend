@@ -102,7 +102,7 @@ async def update_table_record_by_filter(table: Table, values: dict[str, Any], db
             detail=f"Internal server error during data update: {str(e)}")
 
 
-async def delete_table_record_by_filter(table: Table, db: AsyncSession = Depends(init_db), **filters: Any) -> bool:
+async def delete_table_record_by_filter(table: Table, db: AsyncSession, **filters: Any) -> bool:
     try:
         conditions = [table.c[key] == value for key, value in filters.items()]
 
@@ -119,7 +119,7 @@ async def delete_table_record_by_filter(table: Table, db: AsyncSession = Depends
                             detail=f"Internal server error during data deletion: {str(e)}")
 
 
-async def insert_table_record(table: Table, data: dict[str, Any], db: AsyncSession = Depends(init_db)) -> bool:
+async def insert_table_record(table: Table, data: dict[str, Any], db: AsyncSession) -> bool:
     try:
         query = table.insert().values(**data)
 
