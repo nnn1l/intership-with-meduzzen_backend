@@ -44,17 +44,23 @@ class InvitationService:
         # ensuring if there is no invites sent to this user from a company
         await self._check_pending_request(company_id, current_user.id)
 
-        new_invitation = MembershipManagement(
-            company_id = company_id,
-            user_id = invitation_data.user_id,
-            type = InvitationType.INVITATION,
-            status = Status.PENDING)
+        try:
+            new_invitation = MembershipManagement(
+                company_id = company_id,
+                user_id = invitation_data.user_id,
+                type = InvitationType.INVITATION,
+                status = Status.PENDING)
 
-        self.db.add(new_invitation)
-        await self.db.commit()
-        await self.db.refresh(new_invitation)
-        logger.info(f"Invitation with ID {new_invitation.id} successfully created")
-        return new_invitation
+            self.db.add(new_invitation)
+            await self.db.commit()
+            await self.db.refresh(new_invitation)
+            logger.info(f"Invitation with ID {new_invitation.id} successfully created")
+            return new_invitation
+        except Exception as e:
+            await self.db.rollback()
+            logger.error('Error appeared during creating an invitation')
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                                detail=f"Internal server error during invitation creating: {str(e)}")
 
 
     # CREATE JOIN REQUEST
@@ -73,17 +79,25 @@ class InvitationService:
         # ensuring if there is no invites sent to this user from a company
         await self._check_pending_request(company_id, current_user.id)
 
-        new_request = MembershipManagement(
-            company_id=company_id,
-            user_id=request_data.user_id,
-            type=InvitationType.REQUEST,
-            status=Status.PENDING)
+        try:
+            new_request = MembershipManagement(
+                company_id=company_id,
+                user_id=request_data.user_id,
+                type=InvitationType.REQUEST,
+                status=Status.PENDING)
 
-        self.db.add(new_request)
-        await self.db.commit()
-        await self.db.refresh(new_request)
-        logger.info(f"Invitation with ID {new_request.id} successfully created")
-        return new_request
+            self.db.add(new_request)
+            await self.db.commit()
+            await self.db.refresh(new_request)
+            logger.info(f"Invitation with ID {new_request.id} successfully created")
+            return new_request
+
+        except Exception as e:
+            await self.db.rollback()
+            logger.error('Error appeared during creating a join request')
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                                detail=f"Internal server error during join request creating: {str(e)}")
+
 
 
     # CHECK IF USER IS A MEMBER OF A COMPANY ALREADY

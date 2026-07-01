@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import Enum, ForeignKey
-from ..models import Base
+from .base import Base
 from ..utils.enums import InvitationType, Status
 
 if TYPE_CHECKING:

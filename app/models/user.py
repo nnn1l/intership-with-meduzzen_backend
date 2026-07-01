@@ -2,10 +2,10 @@ from sqlalchemy import String
 from typing import Optional, List, TYPE_CHECKING
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
-from ..models import Base
+from .base import Base
 
 if TYPE_CHECKING:
-    from .company import Company, company_members
+    from .company import Company
     from .invitation import MembershipManagement
 
 class User(Base):

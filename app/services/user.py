@@ -29,9 +29,10 @@ class UserService:
             self.db.add(new_user)
             await  self.db.commit()
             await self.db.refresh(new_user)
-
             return new_user
+
         except Exception as e:
+            await self.db.rollback()
             logger.error(f"Error appeared during creating user {user_data.username}: {str(e)}", exc_info=True)
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error during user creation")
 
