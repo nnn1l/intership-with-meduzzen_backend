@@ -7,7 +7,7 @@ from fastapi import status, HTTPException
 from ..models.user import User
 from ..repositories.analytics import get_user_analytics_by_time_periods, get_user_analytics_last_competition
 from ..repositories.company import check_admin_role, is_user_member_of_company
-from ..routes.analytics import get_user_analytics_global, get_user_analytics_in_company, get_member_analytics_over_week, \
+from ..repositories.analytics import get_user_analytics_global, get_user_analytics_in_company, get_member_analytics_over_week, \
     get_company_members_last_competition
 from ..schemas.analytics import UserGlobalAnalyticsResponse, UserQuizPeriodAnalyticsResponse, \
     UserLastCompletionResponse, CompanyMemberQuizTrendsResponse, CompanyOverallDynamicsResponse, \

@@ -1,140 +1,143 @@
-from datetime import datetime, timezone, timedelta
-
 import pytest
-import jwt
-from fastapi import status
-from httpx import AsyncClient, ASGITransport
-from sqlalchemy.ext.asyncio import AsyncSession
 from unittest.mock import AsyncMock, MagicMock
-from ..main import app
-from ..database import engine
-from ..models.user import User
-from ..schemas.config import settings
-from ..services.auth import AuthService
-from ..utils.dependencies import validate_profile_owner
+from sqlalchemy.ext.asyncio import AsyncSession
 
-
-@pytest.fixture
-def mock_db_session():  # imitation of db
-    return AsyncMock(spec=AsyncSession)
-
-
-@pytest.fixture
-async def async_client(mock_db_session):
-    app.dependency_overrides[engine] = lambda: mock_db_session
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(
-        transport=transport,
-        base_url="http://test"
-    ) as ac:
-        yield ac
-
-    app.dependency_overrides.clear()
-
-@pytest.fixture
-def mock_auth_user_1():
-    async def override_validate_profile_owner(user_id: int):
-        if user_id != 1:
-            from fastapi import HTTPException
-            raise HTTPException(
-                status_code=403,
-                detail="You're able to manage only your own profile"
-            )
-        return MOCK_USER_1
-
-    app.dependency_overrides[validate_profile_owner] = override_validate_profile_owner
-    yield
-    app.dependency_overrides.clear()
-
-MOCK_USER_1 = User(id=1, username="alex", email="alex@example.com")
+from app.schemas.user import UserSignUp, UserUpdate
+from app.services.user import UserService
+from ..models.quiz import Quiz, Question
+from app.models.user import User
+from fastapi import HTTPException, status
 
 pytestmark = pytest.mark.asyncio
 
+@pytest.fixture
+def mock_db_session():
+    return MagicMock(spec=AsyncSession)
 
-@pytest.mark.asyncio
-async def test_signup_endpoint_success(async_client, mock_db_session):
-
-    payload = {
-        "username": "viktoriia_dev",
-        "email": "viktoriia@example.com",
-        "password": "securepassword123"
-    }
-
-    mock_db_session.commit.return_value = None
-    mock_db_session.refresh.return_value = None
-
-    response = await async_client.post("/api/v1/users/", json=payload)
-
-    assert response.status_code == status.HTTP_201_CREATED
-
-    response_data = response.json()
-
-    assert response_data["username"] == "viktoriia_dev"
-    assert response_data["email"] == "viktoriia@example.com"
+@pytest.fixture
+def user_service(mock_db_session):
+    return UserService(db_session=mock_db_session)
 
 
 @pytest.mark.asyncio
-async def test_get_current_user_by_token(mock_db_session):
-    test_email = "viktoriia@example.com"
+async def test_create_user_success(user_service, mocker):
+    user_data = UserSignUp(username="test_user", email="test@example.com", password="secure_password")
 
-    mock_user = User(
-        id=1,
-        username="viktoriia_dev",
-        email=test_email,
-        hashed_password="some_hashed_password"
-    )
+    mock_hash = mocker.patch("app.services.auth.AuthService.hash_password", return_value="hashed_str")
 
-    mock_result = MagicMock()
-    mock_result.scalar_one_or_none.return_value = mock_user
-    mock_db_session.execute.return_value = mock_result
+    fake_user = MagicMock()
+    fake_user.username = "test_user"
+    fake_user.email = "test@example.com"
+    fake_user.hashed_password = "hashed_str"
 
-    expire = datetime.now(timezone.utc) + timedelta(minutes=15)
-    payload = {
-        "email": test_email,
-        "exp": expire
+    mocker.patch("app.services.user.User", return_value=fake_user)
+
+    mock_add_to_db = mocker.patch("app.services.user.add_to_db", new_callable=AsyncMock)
+
+    result = await user_service.create_user(user_data)
+
+    assert result.username == "test_user"
+    assert result.email == "test@example.com"
+    assert result.hashed_password == "hashed_str"
+    mock_add_to_db.assert_called_once_with(fake_user, user_service.db)
+
+
+async def test_get_all_users_success(user_service, mocker):
+    fake_user_1 = MagicMock()
+    fake_user_2 = MagicMock()
+    mock_users_list = [fake_user_1, fake_user_2]
+
+    mock_async_func = AsyncMock(return_value=mock_users_list)
+
+    mock_pagination = mocker.patch("app.services.user.get_with_pagination", new_callable=lambda: mock_async_func)
+
+    result = await user_service.get_all_users(limit=10, offset=0)
+
+    assert result == mock_users_list
+    assert len(result) == 2
+
+    mock_pagination.assert_called_once()
+
+
+async def test_get_user_by_id_success(user_service, mocker):
+    fake_user = MagicMock()
+    fake_user.id = 1
+
+    mock_filter = mocker.patch("app.services.user.get_by_filter", new_callable=AsyncMock, return_value=fake_user)
+
+    result = await user_service.get_user_by_id(user_id=1)
+
+    assert result == fake_user
+    mock_filter.assert_called_once()
+
+
+async def test_get_user_by_id_not_found(user_service, mocker):
+    mocker.patch("app.services.user.get_by_filter", new_callable=AsyncMock, return_value=None)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await user_service.get_user_by_id(user_id=999)
+
+    assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+    assert exc_info.value.detail == "User not found"
+
+
+async def test_user_update_success(user_service, mocker):
+    class FakeUser:
+        def __init__(self):
+            self.username = "Old Name"
+            self.description = "Old Desc"
+
+    fake_user = FakeUser()
+
+    mocker.patch.object(user_service, "get_user_by_id", new_callable=AsyncMock, return_value=fake_user)
+
+    mock_refresh = mocker.patch("app.services.user.refresh_data_in_db", new_callable=AsyncMock)
+
+    update_data_mock = MagicMock()
+
+    update_data_mock.model_dump.return_value = {
+        "username": "New Name",
+        "description": "New Desc"
     }
 
-    token = jwt.encode(
-        payload,
-        settings.SECRET_KEY,
-        algorithm=settings.ALGORITHM
-    )
+    result = await user_service.user_update(user_id=1, update_data=update_data_mock)
 
-    service = AuthService(mock_db_session)
+    assert result.username == "New Name"
+    assert result.description == "New Desc"
 
-    user = await service.get_current_user_by_token(token)
-
-    assert user is not None
-    assert user.email == test_email
-    assert user.username == "viktoriia_dev"
+    update_data_mock.model_dump.assert_called_once_with(exclude_unset=True)
+    mock_refresh.assert_called_once_with(fake_user, user_service.db)
 
 
-async def test_update_own_profile_success(mock_auth_user_1):  # noqa
-    transport = ASGITransport(app=app)
+async def test_delete_user_success(user_service, mocker):
+    fake_user = MagicMock()
 
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        payload = {"name": "New name"}
-        response = await ac.patch("/users/1", json=payload)
+    mocker.patch.object(user_service, "get_user_by_id", new_callable=AsyncMock, return_value=fake_user)
+    mock_delete_from_db = mocker.patch("app.services.user.delete_from_db", new_callable=AsyncMock)
 
-        assert response.status_code == status.HTTP_200_OK
+    result = await user_service.delete_user(user_id=1)
 
-
-async def test_update_someone_profile_forbidden(mock_auth_user_1):  # noqa
-    transport = ASGITransport(app=app)
-
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        payload = {"name": "Hacker attack"}
-        response = await ac.patch("/users/2", json=payload)
-
-        assert response.status_code == status.HTTP_403_FORBIDDEN
-        assert response.json()["detail"] == "You're able to manage only your own profile"
+    assert result is True
+    mock_delete_from_db.assert_called_once_with(fake_user, user_service.db)
 
 
-async def test_delete_someone_profile_forbidden(mock_auth_user_1):  # noqa
-    transport = ASGITransport(app=app)
+async def test_get_user_by_email_success(user_service, mocker):
+    fake_user = MagicMock()
+    fake_user.email = "test@example.com"
 
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        response = await ac.delete("/users/2")
+    mock_filter = mocker.patch("app.services.user.get_by_filter", new_callable=AsyncMock, return_value=fake_user)
 
-        assert response.status_code == status.HTTP_403_FORBIDDEN
+    result = await user_service.get_user_by_email(email="test@example.com")
+
+    assert result == fake_user
+    mock_filter.assert_called_once()
+
+
+async def test_get_user_by_email_not_found(user_service, mocker):
+    mocker.patch("app.services.user.get_by_filter", new_callable=AsyncMock, return_value=None)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await user_service.get_user_by_email(email="wrong@example.com")
+
+    assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+    assert exc_info.value.detail == "User not found or incorrect e-mail"

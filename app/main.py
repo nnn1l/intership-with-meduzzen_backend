@@ -45,7 +45,7 @@ def run_reminder_sync():
         loop.close()
 
 scheduler = BackgroundScheduler()
-scheduler.add_job(run_reminder_sync(), CronTrigger(hour=0, minute=0))
+scheduler.add_job(run_reminder_sync, CronTrigger(hour=0, minute=0))
 scheduler.start()
 
 if __name__ == "__main__":
