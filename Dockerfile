@@ -5,11 +5,11 @@ ENV PYTHONUNBUFFERED=1\
     POETRY_VIRTUALENVS_CREATE=false\
     POETRY_NO_INTERACTION=1
 
-RUN pip install --no-cache-dir poetry
+RUN pip install --no-cache-dir --upgrade poetry
 
 WORKDIR /app
 
-COPY poetry.lock pyproject.toml /app/
+COPY pyproject.toml /app/
 
 RUN poetry install --no-root
 

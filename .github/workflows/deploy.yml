@@ -1,0 +1,26 @@
+name: Deploy FastAPI Application
+
+on:
+  push:
+    branches:
+      - develop
+      - BE-20-add-github-actions
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to AWS EC2 via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ~/intership-with-meduzzen_backend
+            git pull origin develop
+            docker compose up --build -d
