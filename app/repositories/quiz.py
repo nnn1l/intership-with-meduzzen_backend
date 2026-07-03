@@ -151,3 +151,11 @@ async def get_members_completed_quiz(quiz: Quiz, time_limit: datetime, db: Async
             QuizAttempt.updated_at >= time_limit))
     completed_result = await db.execute(completed_query)
     return [row[0] for row in completed_result.all()]
+
+async def get_quiz_by_title_and_company(title: str, company_id: int, db: AsyncSession) -> Quiz|None:
+    query = select(Quiz).where(
+        and_(
+            Quiz.title == title,
+            Quiz.company_id == company_id))
+    result = await db.execute(query)
+    return result.scalar_one_or_none()

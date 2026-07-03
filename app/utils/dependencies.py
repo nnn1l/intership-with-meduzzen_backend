@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..core.auth import verify_auth0_token
 from ..database import init_db
 from ..models.company import company_members
+from ..services.excel_import import ExcelImportService
 from ..services.notification import NotificationService
 from ..services.quiz import QuizService
 from ..services.quiz_checker import QuizReminderService
@@ -42,6 +43,9 @@ async def get_notification_service(db: AsyncSession = Depends(init_db)) -> Notif
 
 async def get_scheduler_service(db: AsyncSession = Depends(init_db)) -> QuizReminderService:
     return QuizReminderService(db)
+
+async def get_excel_import_service(db: AsyncSession = Depends(init_db)) -> ExcelImportService:
+    return ExcelImportService(db)
 
 async def get_current_user(payload: dict = Depends(verify_auth0_token), service: AuthService = Depends(get_auth_service)) -> User:
     email = payload.get('email')
