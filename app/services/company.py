@@ -9,12 +9,10 @@ from ..repositories.base import add_to_db, get_by_filter, get_with_pagination, r
 from ..schemas.company import CompanyCreate, CompanyUpdate, CompanyVisibilityResponse, CompanyMemberResponse
 from ..logger import logger
 from ..utils.enums import VisibilityStatus
-from ..repositories.company import check_admin_role, is_user_member_of_company, get_company_administration, \
-    get_company_members
 
 if TYPE_CHECKING:
     from .user import UserService
-
+    from ..utils.dependencies import check_admin_role
 
 class CompanyService:
     def __init__(self, db_session: AsyncSession):

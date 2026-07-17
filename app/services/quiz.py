@@ -15,6 +15,8 @@ from ..schemas.quiz import QuizCreate, QuizUpdate, QuizSubmit, UserAnswerSubmit
 
 if TYPE_CHECKING:
     from .company import CompanyService
+    from ..utils.dependencies import check_admin_role
+    from .notification import NotificationService
 
 class QuizService:
     def __init__(self, db_session: AsyncSession):
@@ -263,30 +265,40 @@ class QuizService:
 
             return await self._fetch_export_data_from_redis(redis, company_id, user_id, quiz_id)
 
-
-    # TEMPORARILY SAVES ANSWER FOR 1 QUESTION IN REDIS FOR 48 HOURS
-    async def save_question_progress(self, redis: Redis, quiz_id: int, user_id: int, answer_data: UserAnswerSubmit):
-        redis_key = f"quiz_progress:{user_id}:{quiz_id}"
-
-        await redis.hset(redis_key, str(answer_data.question_id), json.dumps(answer_data.chosen_answer_id))
-        await redis.expire(redis_key, 172800) #48 hours
+        if quiz.max_attempts > 0:
+            await check_max_attepmts(quiz, current_user, self.db)
 
 
-    # GETS ALL STORED ANSWERS IN REDIS FOR PAST 48 HOURS
-    async def get_quiz_progress(self, redis: Redis, user_id: int, quiz_id: int) -> dict:
-        redis_key = f"quiz_progress:{user_id}:{quiz_id}"
-        stored_data = await redis.hgetall(redis_key)
+    # SUBMIT QUIZ & RESULT (new quiz attempt creation)
+    async def create_quiz_attempt(self, quiz_id: int, answers: QuizSubmit, current_user: User, redis: Redis) -> QuizAttempt:
+        quiz = await self.get_quiz_by_id(quiz_id)
 
-        if not stored_data:
-            return {}
+        await self._validate_attempt_permissions(quiz, current_user, quiz.company_id)
 
-        return {int(q_id): json.loads(val) for q_id, val in stored_data.items()}
+        user_answers_dict = await self.get_quiz_progress(redis, current_user.id, quiz_id)
+        if not user_answers_dict:
+            if answers and answers.answers:
+                user_answers_dict = {ans.question_id: ans.chosen_answer_id for ans in answers.answers}
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No answers found in progress or request body. Please answer questions first"
+                )
 
+        correct_answers, score = self._calculate_score(quiz, user_answers_dict)
 
-    # DELETES CACHE IN REDIS AFTER SUCCESSFUL QUIZ SAVING IN POSTGRESQL
-    async def clear_quiz_progress(self, redis: Redis, user_id: int, quiz_id: int):
-        redis_key = f"quiz_progress:{user_id}:{quiz_id}"
-        await redis.delete(redis_key)
+        new_attempt = QuizAttempt(
+            quiz_id=quiz_id,
+            user_id=current_user.id,
+            company_id=quiz.company_id,
+            score=score,
+            total_questions=len(quiz.questions),
+            correct_answers=correct_answers
+        )
+        await add_to_db(new_attempt, self.db)
+        await self.clear_quiz_progress(redis, current_user.id, quiz_id)
+
+        return new_attempt
 
 
     # GET USER PERSONAL QUIZZES EXPORT
@@ -316,48 +328,59 @@ class QuizService:
         return export_results
 
 
-    # GET COMPANY QUIZZES EXPORT
-    async def get_company_quizzes_export(self, redis: Redis, current_user: User, company_id: int, user_id: int = None,quiz_id: int = None) -> list[dict]:
-        company_service = CompanyService(self.db)
-        company = await company_service.get_company_by_id(company_id)
+    async def _validate_company_export_access(self, company_id: int, current_user_id: int, target_user_id: int = None):
+            company_service = CompanyService(self.db)
+            company = await company_service.get_company_by_id(company_id)
 
-        admin_role = await check_admin_role(company_id, current_user.id, self.db)
-        if not admin_role and company.owner_id != current_user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                                detail="You aren't an admin/owner of this company")
+            admin_role = await check_admin_role(company_id, current_user_id, self.db)
+            if not admin_role and company.owner_id != current_user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You aren't an admin/owner of this company"
+                )
 
-        if user_id is not None:
-            member = await is_user_member_of_company(user_id, company_id, self.db)
-            if not member:
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                                    detail="You can't check quiz results of a user that isn't a member of your company")
+            if target_user_id is not None:
+                member = await is_user_member_of_company(target_user_id, company_id, self.db)
+                if not member:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="You can't check quiz results of a user that isn't a member of your company"
+                    )
 
-        user_pattern = user_id if user_id is not None else "*"
-        quiz_pattern = quiz_id if quiz_id is not None else "*"
-        search_pattern = f"quiz_progress:{user_pattern}:{quiz_pattern}"
+    async def _fetch_export_data_from_redis(self, redis: Redis, company_id: int, user_id: int = None, quiz_id: int = None) -> list[dict]:
+            user_pattern = user_id if user_id is not None else "*"
+            quiz_pattern = quiz_id if quiz_id is not None else "*"
+            search_pattern = f"quiz_progress:{user_pattern}:{quiz_pattern}"
 
-        export_results = []
+            export_results = []
 
-        async for redis_key in redis.scan_iter(match=search_pattern):
-            if isinstance(redis_key, bytes):
-                redis_key = redis_key.decode()
+            async for redis_key in redis.scan_iter(match=search_pattern):
+                if isinstance(redis_key, bytes):
+                    redis_key = redis_key.decode()
 
-            parts = redis_key.split(':')
-            found_user_id = int(parts[1])
-            found_quiz_id = int(parts[2])
+                parts = redis_key.split(':')
+                found_user_id = int(parts[1])
+                found_quiz_id = int(parts[2])
+
+                if quiz_id is None:
+                    found_quiz = await self.get_quiz_by_id(found_quiz_id)
+                    if not found_quiz or found_quiz.company_id != company_id:
+                        continue
+
+                progress = await self.get_quiz_progress(redis, found_user_id, found_quiz_id)
+                for q_id, ans_data in progress.items():
+                    export_results.append({
+                        "user_id": found_user_id,
+                        "quiz_id": found_quiz_id,
+                        "question_id": q_id,
+                        "answer_id": ans_data
+                    })
+            return export_results
 
 
-            if quiz_id is None:
-                found_quiz = await self.get_quiz_by_id(found_quiz_id)
-                if not found_quiz or found_quiz.company_id != company_id:
-                    continue
+    async def get_company_quizzes_export(self, redis: Redis, current_user: User, company_id: int,
+                                             user_id: int = None, quiz_id: int = None) -> list[dict]:
+            await self._validate_company_export_access(company_id, current_user.id, user_id)
 
-            progress = await self.get_quiz_progress(redis, found_user_id, found_quiz_id)
-            for q_id, ans_data in progress.items():
-                export_results.append({
-                    "user_id": found_user_id,
-                    "quiz_id": found_quiz_id,
-                    "question_id": q_id,
-                    "answer_id": ans_data
-                })
-        return export_results
+            return await self._fetch_export_data_from_redis(redis, company_id, user_id, quiz_id)
+
