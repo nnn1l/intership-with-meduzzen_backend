@@ -37,7 +37,7 @@ class UserService:
     # GETTING ALL USERS WITH PAGINATION
     async def get_all_users(self, limit: int=10, offset: int=0) -> List[User]:
         #getting list of users with limit and offset
-        users = await get_with_pagination(User, limit, offset, self.db)
+        users = await get_with_pagination(User, self.db, limit, offset)
         return list(users)
 
     # GET USER BY ID
@@ -60,13 +60,13 @@ class UserService:
                 detail="User not found"
             )
 
-        allowed_fields = {'name', 'password', 'description'}
+        allowed_fields = {'username', 'password', 'description'}
         data_to_update = update_data.model_dump(exclude_unset=True)
         filtered_data = {k: v for k, v in data_to_update.items() if k in allowed_fields}
         for key, value in filtered_data.items():
             setattr(user, key, value)
 
-        await refresh_data_in_db(user)
+        await refresh_data_in_db(user, self.db)
         logger.info(f"User ID {user_id} modified successfully")
 
         return user

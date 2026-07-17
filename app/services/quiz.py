@@ -15,7 +15,6 @@ from ..schemas.quiz import QuizCreate, QuizUpdate, QuizSubmit, UserAnswerSubmit
 
 if TYPE_CHECKING:
     from .company import CompanyService
-    from ..utils.dependencies import check_admin_role
     from .notification import NotificationService
 
 class QuizService:
