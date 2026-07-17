@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import Depends, HTTPException, status
+from fastapi import HTTPException, status
 from sqlalchemy import select, and_, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.schema import Table
@@ -132,3 +132,13 @@ async def insert_table_record(table: Table, data: dict[str, Any], db: AsyncSessi
         logger.error(f"Error inserting into table {table.name} with data {data}: {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail=f"Internal server error during data insertion: {str(e)}")
+
+async def select_all(model, db: AsyncSession):
+    try:
+        query = select(model)
+        return (await db.execute(query)).scalars().all()
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error searching query: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"Internal server error during data searching: {str(e)}")
