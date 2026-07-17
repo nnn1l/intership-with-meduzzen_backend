@@ -101,7 +101,7 @@ async def update_table_record_by_filter(table: Table, values: dict[str, Any], db
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Internal server error during data update: {str(e)}")
 
-        
+
 async def delete_table_record_by_filter(table: Table, db: AsyncSession, **filters: Any) -> bool:
     try:
         conditions = [table.c[key] == value for key, value in filters.items()]

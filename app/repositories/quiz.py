@@ -128,10 +128,9 @@ async def _sync_answer(db_question: Question, incoming_answers: List[AnswerUpdat
                 db.add(new_answer)
 
 async def check_max_attepmts(quiz: Quiz, current_user: User, db: AsyncSession):
-    query = select(func.count()).where(
-        and_(QuizAttempt.quiz_id == quiz.id,
-             QuizAttempt.user_id == current_user.id)
-    )
+    query = select(func.count()).where(QuizAttempt.quiz_id == quiz.id,
+                                        QuizAttempt.user_id == current_user.id)
+
     attempts = (await db.execute(query)).scalar() or 0
 
     if quiz.max_attempts <= attempts:

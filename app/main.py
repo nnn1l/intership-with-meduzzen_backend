@@ -41,8 +41,8 @@ def run_reminder_sync():
             service = QuizReminderService(db)
             await service.check_and_remind_users()
 
-        loop.run_until_complete(run())
-        loop.close()
+    loop.run_until_complete(run())
+    loop.close()
 
 scheduler = BackgroundScheduler()
 scheduler.add_job(run_reminder_sync(), CronTrigger(hour=0, minute=0))

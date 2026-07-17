@@ -150,7 +150,7 @@ class InvitationService:
                                 detail="You don't have permission to accept join request")
 
         request.status = Status.ACCEPTED
-        await insert_table_record(company_members, {"company_id_id": request.company_id, "user_id": request.user_id})
+        await insert_table_record(company_members, {"company_id": request.company_id, "user_id": request.user_id}, self.db)
         await refresh_data_in_db(request)
         logger.info(f"Join request with ID {request_id} accepted")
         return request
