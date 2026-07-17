@@ -1,12 +1,12 @@
 from typing import List
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from ..logger import logger
-from ..models import Quiz, Question, AnswerOption
+from ..models import Quiz, Question, AnswerOption, QuizAttempt, User
 from ..schemas.quiz import QuizCreate, QuizUpdate, AnswerUpdate
 
 
@@ -125,3 +125,13 @@ async def _sync_answer(db_question: Question, incoming_answers: List[AnswerUpdat
                     is_correct = a_item.is_correct
                 )
                 db.add(new_answer)
+
+async def check_max_attepmts(quiz: Quiz, current_user: User, db: AsyncSession):
+    query = select(func.count()).where(QuizAttempt.quiz_id == quiz.id,
+                                        QuizAttempt.user_id == current_user.id)
+
+    attempts = (await db.execute(query)).scalar() or 0
+
+    if quiz.max_attempts <= attempts:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"You've reached the maximum limit of {quiz.max_attempts} attempts for this quiz")
