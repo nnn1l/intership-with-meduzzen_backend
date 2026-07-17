@@ -5,7 +5,6 @@ from sqlalchemy import select, and_, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.schema import Table
 
-from ..database import init_db
 from ..logger import logger
 
 
@@ -142,3 +141,21 @@ async def select_all(model, db: AsyncSession):
         logger.error(f"Error searching query: {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail=f"Internal server error during data searching: {str(e)}")
+
+async def do_flush(db: AsyncSession):
+    try:
+        return await db.flush()
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error during flushing: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"Internal server error during flushing: {str(e)}")
+
+async def do_commit(db: AsyncSession):
+    try:
+        return await db.commit()
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error during committing: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"Internal server error during data committing: {str(e)}")
