@@ -264,6 +264,30 @@ class QuizService:
             return await self._fetch_export_data_from_redis(redis, company_id, user_id, quiz_id)
 
 
+    # TEMPORARILY SAVES ANSWER FOR 1 QUESTION IN REDIS FOR 48 HOURS
+    async def save_question_progress(self, redis: Redis, quiz_id: int, user_id: int, answer_data: UserAnswerSubmit):
+        redis_key = f"quiz_progress:{user_id}:{quiz_id}"
+
+        await redis.hset(redis_key, str(answer_data.question_id), json.dumps(answer_data.chosen_answer_id))
+        await redis.expire(redis_key, 172800) #48 hours
+
+
+    # GETS ALL STORED ANSWERS IN REDIS FOR PAST 48 HOURS
+    async def get_quiz_progress(self, redis: Redis, user_id: int, quiz_id: int) -> dict:
+        redis_key = f"quiz_progress:{user_id}:{quiz_id}"
+        stored_data = await redis.hgetall(redis_key)
+
+        if not stored_data:
+            return {}
+
+        return {int(q_id): json.loads(val) for q_id, val in stored_data.items()}
+
+
+    # DELETES CACHE IN REDIS AFTER SUCCESSFUL QUIZ SAVING IN POSTGRESQL
+    async def clear_quiz_progress(self, redis: Redis, user_id: int, quiz_id: int):
+        redis_key = f"quiz_progress:{user_id}:{quiz_id}"
+        await redis.delete(redis_key)
+
 
     # GET USER PERSONAL QUIZZES EXPORT
     async def get_user_personal_quizzes_export(self, redis: Redis, current_user: User, quiz_id: int = None) -> list[dict]:

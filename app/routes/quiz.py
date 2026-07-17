@@ -56,17 +56,6 @@ async def create_quiz_attempt(quiz_id: int,
                               redis: Redis = Depends(get_redis)):
     return await service.create_quiz_attempt(quiz_id, answers, current_user, redis)
 
-@router.get('/{company_id}/{user_id}/analytics', response_model=float)
-async def get_user_analytics_in_company(user_id: int,
-                                        company_id: int,
-                                        service: QuizService = Depends(get_quiz_service)):
-    return await service.get_user_analytics_in_company(user_id, company_id)
-
-@router.get('/{user_id}/analytics', response_model=float)
-async def get_user_analytics_global(user_id: int,
-                                    service: QuizService = Depends(get_quiz_service)):
-    return await service.get_user_analytics_global(user_id)
-
 @router.put('/{quiz_id}/answers', status_code=status.HTTP_200_OK)
 async def save_interim_answer(quiz_id: int,
                                answer_data: UserAnswerSubmit,
