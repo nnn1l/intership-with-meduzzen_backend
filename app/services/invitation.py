@@ -1,10 +1,12 @@
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
 
 from ..models.company import company_members
+from ..repositories.base import add_to_db, get_by_filter, delete_from_db, refresh_data_in_db, insert_table_record
+from ..repositories.company import is_user_member_of_company
+from ..repositories.invitation import check_pending_request
 from ..schemas.invitation import InvitationCreate, JoinRequestCreate
 from ..models.user import User
 from ..models.invitation import MembershipManagement
@@ -39,10 +41,16 @@ class InvitationService:
                                 detail="You can't invite yourself")
 
         # ensuring if user isn't a member of a company
-        await self._check_already_member(company_id, current_user.id)
+        is_member = await is_user_member_of_company(invitation_data.user_id, company_id, self.db)
+        if is_member:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="You can't invite user if user's a member of your company")
 
         # ensuring if there is no invites sent to this user from a company
-        await self._check_pending_request(company_id, current_user.id)
+        pending = await check_pending_request(company_id, invitation_data.user_id, self.db)
+        if pending:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="You can't send invites twice")
 
         try:
             new_invitation = MembershipManagement(
@@ -51,92 +59,57 @@ class InvitationService:
                 type = InvitationType.INVITATION,
                 status = Status.PENDING)
 
-            self.db.add(new_invitation)
-            await self.db.commit()
-            await self.db.refresh(new_invitation)
+            await add_to_db(new_invitation)
             logger.info(f"Invitation with ID {new_invitation.id} successfully created")
             return new_invitation
         except Exception as e:
-            await self.db.rollback()
             logger.error('Error appeared during creating an invitation')
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                                 detail=f"Internal server error during invitation creating: {str(e)}")
 
 
     # CREATE JOIN REQUEST
-    async def create_join_request(self, request_data: JoinRequestCreate, company_id: int, current_user: User) -> MembershipManagement:
+    async def create_join_request(self, request_data: JoinRequestCreate, current_user: User) -> MembershipManagement:
         company_service = CompanyService(self.db)
-        company = await company_service.get_company_by_id(company_id)  # ensuring if company exists & get company
-
-        # ensuring if current user isn't owner of a company
-        if company.owner_id == current_user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                                detail="You're an owner of this company")
+        company = await company_service.get_company_by_id(request_data.company_id)  # ensuring if company exists & get company
 
         # ensuring if user isn't a member of a company
-        await self._check_already_member(company_id, current_user.id)
+        is_member = await is_user_member_of_company(current_user.id, company.id, self.db)
+        if is_member:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                    detail="You can't invite user if user's a member of your company")
 
-        # ensuring if there is no invites sent to this user from a company
-        await self._check_pending_request(company_id, current_user.id)
+        # ensuring if there is no join requests sent to this company from a user
+        pending = await check_pending_request(company.id, current_user.id, self.db)
+        if pending:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                    detail="You can't send invites twice")
 
         try:
             new_request = MembershipManagement(
-                company_id=company_id,
-                user_id=request_data.user_id,
+                company_id=request_data.company_id,
+                user_id=current_user.id,
                 type=InvitationType.REQUEST,
                 status=Status.PENDING)
 
-            self.db.add(new_request)
-            await self.db.commit()
-            await self.db.refresh(new_request)
+            await add_to_db(new_request)
             logger.info(f"Invitation with ID {new_request.id} successfully created")
             return new_request
 
         except Exception as e:
-            await self.db.rollback()
             logger.error('Error appeared during creating a join request')
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                                 detail=f"Internal server error during join request creating: {str(e)}")
 
 
-
-    # CHECK IF USER IS A MEMBER OF A COMPANY ALREADY
-    async def _check_already_member(self, company_id: int, user_id: int):
-        member_status = select(company_members).where(
-            and_(
-                company_members.c.company_id == company_id,
-                company_members.c.user_id == user_id))
-
-        member_result = await self.db.execute(member_status)
-        if member_result.scalar_one_or_none():
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                                detail="You can't send invite or join request if user's a member of this company already")
-
-
-    # CHECK IF PEND REQUEST IS SENT ALREADY
-    async def _check_pending_request(self, company_id: int, user_id: int):
-        pending_status = select(MembershipManagement).where(
-            and_(
-                MembershipManagement.company_id == company_id,
-                MembershipManagement.user_id == user_id,
-                MembershipManagement.status == Status.PENDING))
-
-        pending_result = await self.db.execute(pending_status)
-        if pending_result.scalar_one_or_none():
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                                detail="You have already sent a join request or invitation")
-
-
     # GET INVITATION OR JOIN REQUEST BY ID
-    async def get_membership_management_by_id(self, invite_id: int) -> MembershipManagement:
-        query = select(MembershipManagement).where(MembershipManagement.id == invite_id)
-        result = await self.db.execute(query)
-        invitation = result.scalar_one_or_none()
+    async def get_membership_management_by_id(self, m_id: int) -> MembershipManagement:
+        invitation = await get_by_filter(MembershipManagement, self.db, id=m_id)
 
         if not invitation:
-            logger.error(f"Invitation or join request with ID {invite_id} wasn't found")
+            logger.error(f"Invitation or join request with ID {m_id} wasn't found")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail="Invitation or join request with this ID doesn't exist")
+                                detail=f"Invitation or join request with ID {m_id} doesn't exist")
 
         return invitation
 
@@ -155,12 +128,8 @@ class InvitationService:
 
         invitation.status = Status.ACCEPTED
 
-        insert_user = company_members.insert().values(
-            user_id=current_user.id,
-            company_id=invitation.company_id)
-        await self.db.execute(insert_user)
-        await self.db.commit()
-        await self.db.refresh(invitation)
+        await insert_table_record(company_members, {"user_id": current_user.id, "company_id": invitation.company_id} , self.db)
+        await refresh_data_in_db(invitation)
         logger.info(f"Invitation with ID {invitation_id} accepted")
         return invitation
 
@@ -181,12 +150,8 @@ class InvitationService:
                                 detail="You don't have permission to accept join request")
 
         request.status = Status.ACCEPTED
-        insert_user = company_members.insert().values(
-            user_id=current_user.id,
-            company_id=request.company_id)
-        await self.db.execute(insert_user)
-        await self.db.commit()
-        await self.db.refresh(request)
+        await insert_table_record(company_members, {"company_id": request.company_id, "user_id": request.user_id}, self.db)
+        await refresh_data_in_db(request)
         logger.info(f"Join request with ID {request_id} accepted")
         return request
 
@@ -210,8 +175,7 @@ class InvitationService:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                 detail="You don't have permissions to delete requests that don't belong to you")
 
-        await self.db.delete(record)
-        await self.db.commit()
+        await delete_from_db(record, self.db)
         logger.info(f"The {str(record.type)} with ID {record.id} deleted successfully")
         return True
 
@@ -229,8 +193,7 @@ class InvitationService:
                                 detail="You don't have permission to decline invitation")
 
         invitation.status = Status.DECLINED
-        await self.db.commit()
-        await self.db.refresh(invitation)
+        await refresh_data_in_db(invitation, self.db)
         logger.info(f"Invitation with ID {invitation_id} declined")
         return invitation
 
@@ -251,73 +214,46 @@ class InvitationService:
                                 detail="You don't have permission to decline join request")
 
         request.status = Status.DECLINED
-        await self.db.commit()
-        await self.db.refresh(request)
+        await refresh_data_in_db(request, self.db)
         logger.info(f"Join request with ID {request_id} declined")
         return request
 
 
     # GET USER'S SENT REQUESTS
-    async def get_user_sent_requests(self, current_user: User, limit: int, offset: int):
-        requests = (select(MembershipManagement).where(
-                and_(
-                    MembershipManagement.user_id == current_user.id,
-                    MembershipManagement.type == InvitationType.REQUEST))
-            .limit(limit)
-            .offset(offset))
+    async def get_user_sent_requests(self, current_user: User):
+        requests = await get_by_filter(MembershipManagement, self.db, user_id=current_user.id, type=InvitationType.REQUEST)
 
-        result = await self.db.execute(requests)
-        return result.scalars().all()
+        return requests
 
 
     # GET USER'S RECEIVED INVITATIONS
-    async def get_user_received_invitations(self, current_user: User, limit: int, offset: int):
-        invitations = (select(MembershipManagement).where(
-                and_(
-                    MembershipManagement.user_id == current_user.id,
-                    MembershipManagement.type == InvitationType.INVITATION))
-            .limit(limit)
-            .offset(offset))
+    async def get_user_received_invitations(self, current_user: User):
+        invitations = get_by_filter(MembershipManagement, self.db, user_id=current_user.id, type=InvitationType.INVITATION)
 
-        result = await self.db.execute(invitations)
-        return result.scalars().all()
+        return invitations
 
 
     # COMPANY'S INVITED USERS
-    async def get_owner_sent_invitations(self, company_id: int, current_user: User, limit: int, offset: int):
+    async def get_owner_sent_invitations(self, company_id: int, current_user: User):
         company_service = CompanyService(self.db)
         company = await company_service.get_company_by_id(company_id)
 
         if company.owner_id != current_user.id:
             raise HTTPException(status_code=403, detail="Only the company owner can view this list")
 
-        invitations = (select(MembershipManagement).where(
-                and_(
-                    MembershipManagement.company_id == company_id,
-                    MembershipManagement.type == InvitationType.INVITATION))
-            .limit(limit)
-            .offset(offset))
+        invitations = await get_by_filter(MembershipManagement, self.db, company_id=company_id, type=InvitationType.INVITATION)
 
-        result = await self.db.execute(invitations)
-        return result.scalars().all()
+        return invitations
 
 
     # COMPANY'S PENDING REQUESTS
-    async def get_company_pending_requests(self, company_id: int, current_user: User, limit: int, offset: int):
+    async def get_company_pending_requests(self, company_id: int, current_user: User):
         company_service = CompanyService(self.db)
         company = await company_service.get_company_by_id(company_id)
 
         if company.owner_id != current_user.id:
             raise HTTPException(status_code=403, detail="Only the company owner can view this list")
 
-        requests = (select(MembershipManagement).where(
-                and_(
-                    MembershipManagement.company_id == company_id,
-                    MembershipManagement.type == InvitationType.REQUEST,
-                    MembershipManagement.status == Status.PENDING))
-            .limit(limit)
-            .offset(offset))
-
-        result = await self.db.execute(requests)
-        return result.scalars().all()
+        invitations = await get_by_filter(MembershipManagement, self.db, company_id=company_id, type=InvitationType.REQUEST, status=Status.PENDING)
+        return invitations
 

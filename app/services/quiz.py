@@ -263,3 +263,77 @@ class QuizService:
 
             return await self._fetch_export_data_from_redis(redis, company_id, user_id, quiz_id)
 
+
+
+    # GET USER PERSONAL QUIZZES EXPORT
+    async def get_user_personal_quizzes_export(self, redis: Redis, current_user: User, quiz_id: int = None) -> list[dict]:
+        quiz_pattern = quiz_id if quiz_id is not None else "*"
+        search_pattern = f"quiz_progress:{current_user.id}:{quiz_pattern}"
+
+        export_results = []
+
+        async for redis_key in redis.scan_iter(match=search_pattern):
+            if isinstance(redis_key, bytes):
+                redis_key = redis_key.decode()
+
+            parts = redis_key.split(':')
+            found_quiz_id = int(parts[2])
+
+            progress = await self.get_quiz_progress(redis, current_user.id, found_quiz_id)
+
+            for q_id, ans_data in progress.items():
+                export_results.append({
+                    "user_id": current_user.id,
+                    "quiz_id": found_quiz_id,
+                    "question_id": q_id,
+                    "answer_id": ans_data
+                })
+
+        return export_results
+
+
+    # GET COMPANY QUIZZES EXPORT
+    async def get_company_quizzes_export(self, redis: Redis, current_user: User, company_id: int, user_id: int = None,quiz_id: int = None) -> list[dict]:
+        company_service = CompanyService(self.db)
+        company = await company_service.get_company_by_id(company_id)
+
+        admin_role = await check_admin_role(company_id, current_user.id, self.db)
+        if not admin_role and company.owner_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                detail="You aren't an admin/owner of this company")
+
+        if user_id is not None:
+            member = await is_user_member_of_company(user_id, company_id, self.db)
+            if not member:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                    detail="You can't check quiz results of a user that isn't a member of your company")
+
+        user_pattern = user_id if user_id is not None else "*"
+        quiz_pattern = quiz_id if quiz_id is not None else "*"
+        search_pattern = f"quiz_progress:{user_pattern}:{quiz_pattern}"
+
+        export_results = []
+
+        async for redis_key in redis.scan_iter(match=search_pattern):
+            if isinstance(redis_key, bytes):
+                redis_key = redis_key.decode()
+
+            parts = redis_key.split(':')
+            found_user_id = int(parts[1])
+            found_quiz_id = int(parts[2])
+
+
+            if quiz_id is None:
+                found_quiz = await self.get_quiz_by_id(found_quiz_id)
+                if not found_quiz or found_quiz.company_id != company_id:
+                    continue
+
+            progress = await self.get_quiz_progress(redis, found_user_id, found_quiz_id)
+            for q_id, ans_data in progress.items():
+                export_results.append({
+                    "user_id": found_user_id,
+                    "quiz_id": found_quiz_id,
+                    "question_id": q_id,
+                    "answer_id": ans_data
+                })
+        return export_results
